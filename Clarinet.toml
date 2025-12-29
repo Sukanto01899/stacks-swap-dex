@@ -1,0 +1,68 @@
+﻿[project]
+name = "stacks-exchange"
+description = ""
+authors = []
+telemetry = true
+cache_dir = "./.cache"
+
+[contracts.sip-010-trait-ft-standard]
+path = "contracts/traits/sip-010-trait.clar"
+epoch = "latest"
+
+[contracts.token-x]
+path = "contracts/test-tokens/token-x.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[contracts.token-y]
+path = "contracts/test-tokens/token-y.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[contracts.pool]
+path = "contracts/pool.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[contracts.pool-v]
+path = "contracts/pool-v.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[contracts.pool-v2]
+path = "contracts/pool-v2.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[contracts.pool-v3]
+path = "contracts/pool-v3.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[contracts.pool-v4]
+path = "contracts/pool-v4.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[contracts.pool-v5]
+path = "contracts/pool-v5.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[contracts.pool-lp]
+path = "contracts/pool-lp.clar"
+depends_on = ["sip-010-trait-ft-standard"]
+epoch = "latest"
+
+[repl.analysis]
+passes = ["check_checker"]
+check_checker = { trusted_sender = false, trusted_caller = false, callee_filter = false }
+
+# Check-checker settings:
+# trusted_sender: if true, inputs are trusted after tx_sender has been checked.
+# trusted_caller: if true, inputs are trusted after contract-caller has been checked.
+# callee_filter: if true, untrusted data may be passed into a private function without a
+# warning, if it gets checked inside. This check will also propagate up to the
+# caller.
+# More informations: https://www.hiro.so/blog/new-safety-checks-in-clarinet
+
