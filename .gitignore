@@ -11,3 +11,9 @@ coverage
 *.info
 costs-reports.json
 node_modules
+.env
+.env.local
+frontend/.env
+frontend/.env.local
+faucet-api/.env
+faucet-api/.env.local
