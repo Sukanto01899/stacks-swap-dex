@@ -4,7 +4,7 @@
 ;; A simple test token implementing SIP-010 for DEX testing
 ;; ============================================================================
 
-(impl-trait .sip-010-trait-ft-standard.sip-010-trait)
+(impl-trait .sip-010-trait-ft-standard-v2.sip-010-trait)
 
 (define-fungible-token token-y)
 
@@ -61,5 +61,4 @@
     (ft-mint? token-y amount recipient)
   )
 )
-
 

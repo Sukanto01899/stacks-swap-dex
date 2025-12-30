@@ -26,7 +26,7 @@
 ;; ============================================================================
 
 ;; SIP-010 Fungible Token Trait
-(use-trait ft-trait .sip-010-trait-ft-standard.sip-010-trait)
+(use-trait ft-trait .sip-010-trait-ft-standard-v2.sip-010-trait)
 
 ;; ============================================================================
 ;; CONSTANTS
@@ -289,5 +289,4 @@
     total-fees: (var-get total-fees-collected)
   }
 )
-
 
