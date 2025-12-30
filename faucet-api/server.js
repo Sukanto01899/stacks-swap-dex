@@ -3,8 +3,8 @@ import express from 'express'
 import cors from 'cors'
 import { HDKey } from '@scure/bip32'
 import { mnemonicToSeed } from '@scure/bip39'
-import StxTx from '@stacks/transactions'
-import StacksNetworkPkg from '@stacks/network'
+import * as StxTx from '@stacks/transactions'
+import * as StacksNetworkPkg from '@stacks/network'
 import { deriveStxPrivateKey } from '@stacks/wallet-sdk'
 
 const app = express()
@@ -43,7 +43,6 @@ const {
   AnchorMode,
   PostConditionMode,
   broadcastTransaction,
-  estimateContractFunctionCall,
   getAddressFromPrivateKey,
   makeContractCall,
   standardPrincipalCV,
@@ -98,9 +97,10 @@ app.post('/faucet', async (req, res) => {
       anchorMode: AnchorMode.Any,
     }
 
-    const fee = await estimateContractFunctionCall(callOptions)
-    const tx = await makeContractCall({ ...callOptions, fee })
-    const response = await broadcastTransaction(tx, network)
+    const tx = await makeContractCall(callOptions)
+    const fee =
+      tx.auth?.spendingCondition?.fee ?? tx.auth?.originSpendingCondition?.fee ?? 0n
+    const response = await broadcastTransaction({ transaction: tx, network })
 
     if ('error' in response) {
       return res.status(500).json({ error: response.error, reason: response.reason })
