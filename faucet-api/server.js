@@ -1,19 +1,10 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { HDKey } from '@scure/bip32'
 import { mnemonicToSeed } from '@scure/bip39'
-import {
-  AnchorMode,
-  PostConditionMode,
-  TransactionVersion,
-  broadcastTransaction,
-  estimateContractFunctionCall,
-  getAddressFromPrivateKey,
-  makeContractCall,
-  standardPrincipalCV,
-  uintCV,
-} from '@stacks/transactions'
-import { StacksTestnet } from '@stacks/network'
+import StxTx from '@stacks/transactions'
+import StacksNetworkPkg from '@stacks/network'
 import { deriveStxPrivateKey } from '@stacks/wallet-sdk'
 
 const app = express()
@@ -39,6 +30,7 @@ const TOKEN_CONTRACTS = {
 
 const ALLOWED_TOKENS = Object.keys(TOKEN_CONTRACTS)
 const amountWithDecimals = BigInt(Math.floor(Number(FAUCET_AMOUNT)) * 1_000_000)
+const TX_VERSION_TESTNET = 128
 
 const isValidAddress = (addr) =>
   typeof addr === 'string' && /^S[NT][A-Z0-9]{38,}/.test(addr)
@@ -46,13 +38,27 @@ const isValidAddress = (addr) =>
 let senderKey
 let senderAddress
 let network
+const { createNetwork, STACKS_TESTNET } = StacksNetworkPkg
+const {
+  AnchorMode,
+  PostConditionMode,
+  broadcastTransaction,
+  estimateContractFunctionCall,
+  getAddressFromPrivateKey,
+  makeContractCall,
+  standardPrincipalCV,
+  uintCV,
+} = StxTx
 
 async function initWallet() {
   const seed = await mnemonicToSeed(DEPLOYER_MNEMONIC)
   const rootNode = HDKey.fromMasterSeed(seed)
   senderKey = deriveStxPrivateKey({ rootNode, index: 0 })
-  senderAddress = getAddressFromPrivateKey(senderKey, TransactionVersion.Testnet)
-  network = new StacksTestnet({ url: STACKS_NODE })
+  senderAddress = getAddressFromPrivateKey(senderKey, STACKS_TESTNET)
+  network = createNetwork({
+    ...STACKS_TESTNET,
+    client: { baseUrl: STACKS_NODE },
+  })
   console.log(`Faucet ready. Sender: ${senderAddress} | Node: ${STACKS_NODE}`)
 }
 
@@ -66,10 +72,12 @@ app.post('/faucet', async (req, res) => {
       return res.status(503).json({ error: 'Faucet not ready yet' })
     }
 
-    const { address, token } = req.body || {}
-    if (!isValidAddress(address)) {
-      return res.status(400).json({ error: 'Invalid Stacks address' })
-    }
+  const { address, token } = req.body || {}
+  if (!isValidAddress(address)) {
+    return res
+      .status(400)
+      .json({ error: 'Invalid Stacks address (must be testnet: starts with ST or SN)' })
+  }
 
     if (!ALLOWED_TOKENS.includes(token)) {
       return res
