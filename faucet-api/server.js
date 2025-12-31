@@ -13,8 +13,9 @@ app.use(express.json())
 
 const {
   DEPLOYER_MNEMONIC,
-  STACKS_NODE = 'https://api.testnet.hiro.so',
-  CONTRACT_ADDRESS = 'ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13',
+  STACKS_NODE,
+  STACKS_NETWORK = 'mainnet',
+  CONTRACT_ADDRESS,
   FAUCET_PORT = 8787,
   FAUCET_AMOUNT = '5000',
 } = process.env
@@ -30,15 +31,14 @@ const TOKEN_CONTRACTS = {
 
 const ALLOWED_TOKENS = Object.keys(TOKEN_CONTRACTS)
 const amountWithDecimals = BigInt(Math.floor(Number(FAUCET_AMOUNT)) * 1_000_000)
-const TX_VERSION_TESTNET = 128
 
 const isValidAddress = (addr) =>
-  typeof addr === 'string' && /^S[NT][A-Z0-9]{38,}/.test(addr)
+  typeof addr === 'string' && /^S[PNT][A-Z0-9]{38,}/.test(addr)
 
 let senderKey
 let senderAddress
 let network
-const { createNetwork, STACKS_TESTNET } = StacksNetworkPkg
+const { createNetwork, STACKS_TESTNET, STACKS_MAINNET } = StacksNetworkPkg
 const {
   AnchorMode,
   PostConditionMode,
@@ -53,12 +53,20 @@ async function initWallet() {
   const seed = await mnemonicToSeed(DEPLOYER_MNEMONIC)
   const rootNode = HDKey.fromMasterSeed(seed)
   senderKey = deriveStxPrivateKey({ rootNode, index: 0 })
-  senderAddress = getAddressFromPrivateKey(senderKey, STACKS_TESTNET)
+  const baseNetwork = STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET
+  const baseUrl =
+    STACKS_NODE ||
+    (STACKS_NETWORK === 'mainnet'
+      ? 'https://api.hiro.so'
+      : 'https://api.testnet.hiro.so')
+  senderAddress = getAddressFromPrivateKey(senderKey, baseNetwork)
   network = createNetwork({
-    ...STACKS_TESTNET,
-    client: { baseUrl: STACKS_NODE },
+    ...baseNetwork,
+    client: { baseUrl },
   })
-  console.log(`Faucet ready. Sender: ${senderAddress} | Node: ${STACKS_NODE}`)
+  console.log(
+    `Faucet ready. Sender: ${senderAddress} | Network: ${STACKS_NETWORK} | Node: ${baseUrl}`
+  )
 }
 
 app.get('/health', (_req, res) => {
