@@ -18,67 +18,64 @@ plan:
         - contract-publish:
             contract-name: pool-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 98210
+            cost: 98280
             path: "contracts\\pool-c4.clar"
             anchor-block-only: true
             clarity-version: 3
         - contract-publish:
             contract-name: pool-lp-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 119680
+            cost: 119760
             path: "contracts\\pool-lp-c4.clar"
             anchor-block-only: true
             clarity-version: 3
         - contract-publish:
             contract-name: pool-v-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 119670
+            cost: 119750
             path: "contracts\\pool-v-c4.clar"
             anchor-block-only: true
             clarity-version: 3
         - contract-publish:
             contract-name: pool-v2-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 68770
+            cost: 68860
             path: "contracts\\pool-v2-c4.clar"
             anchor-block-only: true
             clarity-version: 3
         - contract-publish:
             contract-name: pool-v3-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 65940
+            cost: 66030
             path: "contracts\\pool-v3-c4.clar"
             anchor-block-only: true
             clarity-version: 3
         - contract-publish:
             contract-name: pool-v4-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 119680
+            cost: 119770
             path: "contracts\\pool-v4-c4.clar"
             anchor-block-only: true
             clarity-version: 3
         - contract-publish:
             contract-name: pool-v5-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 157090
+            cost: 157180
             path: "contracts\\pool-v5-c4.clar"
             anchor-block-only: true
             clarity-version: 3
         - contract-publish:
             contract-name: token-x-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 16700
+            cost: 16740
             path: "contracts\\test-tokens\\token-x-c4.clar"
             anchor-block-only: true
             clarity-version: 3
         - contract-publish:
             contract-name: token-y-c4
             expected-sender: ST1G4ZDXED8XM2XJ4Q4GJ7F4PG4EJQ1KKXVPSAX13
-            cost: 16710
+            cost: 16750
             path: "contracts\\test-tokens\\token-y-c4.clar"
             anchor-block-only: true
             clarity-version: 3
       epoch: "3.2"
-
-
-
