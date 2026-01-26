@@ -48,6 +48,32 @@
 (define-constant ERR_ALREADY_INITIALIZED (err u200))
 (define-constant ERR_NOT_INITIALIZED (err u201))
 
+;;Swap Event
+(define-event swap-executed
+  (swapper principal)
+  (token-x principal)
+  (token-y principal)
+  (dx uint)
+  (dy uint)
+  (fee uint)
+  (fee-recipient principal)
+  (recipient principal)
+  (new-reserve-x uint)
+  (new-reserve-y uint)
+  (timestamp uint)
+)
+
+;; INITIALIZATION EVENT
+(define-event pool-initialized
+  (initializer principal)
+  (token-x principal)
+  (token-y principal)
+  (amount-x uint)
+  (amount-y uint)
+  (fee-recipient principal)
+  (timestamp uint)
+)
+
 ;; ============================================================================
 ;; DATA VARIABLES
 ;; ============================================================================
@@ -230,6 +256,21 @@
       
       ;; Track total fees collected
       (var-set total-fees-collected (+ (var-get total-fees-collected) fee))
+
+         ;; EMIT SWAP EVENT 
+      (emit-event (swap-executed
+        tx-sender
+        (contract-of token-x)
+        (contract-of token-y)
+        dx
+        dy
+        fee
+        fee-addr
+        recipient
+        (+ rx dx-to-pool)  ;; new reserve-x
+        (- ry dy)          ;; new reserve-y
+        stacks-block-height
+      ))
       
       ;; Return swap details including fee
       (ok { dx: dx, dy: dy, fee: fee, recipient: recipient })
@@ -268,6 +309,17 @@
     ;; Set initial reserves
     (var-set reserve-x amount-x)
     (var-set reserve-y amount-y)
+
+       ;; EMIT INITIALIZATION EVENT
+    (emit-event (pool-initialized
+      tx-sender
+      (contract-of token-x)
+      (contract-of token-y)
+      amount-x
+      amount-y
+      tx-sender
+      stacks-block-height
+    ))
     
     (ok { x: amount-x, y: amount-y, fee-recipient: tx-sender })
   )
