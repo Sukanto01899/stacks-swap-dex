@@ -1,20 +1,20 @@
 ;; ============================================================================
-;; Test Token X - SIP-010 Fungible Token
+;; Test Token Y - SIP-010 Fungible Token
 ;; ============================================================================
 ;; A simple test token implementing SIP-010 for DEX testing
 ;; ============================================================================
 
-(impl-trait .sip-010-trait-ft-standard-v2.sip-010-trait)
+(impl-trait .sip-010-trait-ft-standard-v2-c4.sip-010-trait)
 
-(define-fungible-token token-x)
+(define-fungible-token token-y)
 
 (define-constant CONTRACT_OWNER tx-sender)
 (define-constant ERR_NOT_AUTHORIZED (err u401))
 (define-constant ERR_INSUFFICIENT_BALANCE (err u402))
 
 ;; Token metadata
-(define-constant TOKEN_NAME "Test Token X")
-(define-constant TOKEN_SYMBOL "TSTX")
+(define-constant TOKEN_NAME "Test Token Y")
+(define-constant TOKEN_SYMBOL "TSTY")
 (define-constant TOKEN_DECIMALS u6)
 (define-constant TOKEN_URI none)
 
@@ -33,11 +33,12 @@
 )
 
 (define-read-only (get-balance (account principal))
-  (ok (ft-get-balance token-x account))
+  (ok (ft-get-balance token-y account))
 )
 
 (define-read-only (get-total-supply)
-  (ok (ft-get-supply token-x))
+  (ok (ft-get-supply token-y)
+)
 )
 
 (define-read-only (get-token-uri)
@@ -47,7 +48,7 @@
 (define-public (transfer (amount uint) (sender principal) (recipient principal) (memo (optional (buff 34))))
   (begin
     (asserts! (is-eq tx-sender sender) ERR_NOT_AUTHORIZED)
-    (try! (ft-transfer? token-x amount sender recipient))
+    (try! (ft-transfer? token-y amount sender recipient))
     (match memo to-print (print to-print) 0x)
     (ok true)
   )
@@ -57,7 +58,8 @@
 (define-public (mint (amount uint) (recipient principal))
   (begin
     (asserts! (is-eq tx-sender CONTRACT_OWNER) ERR_NOT_AUTHORIZED)
-    (ft-mint? token-x amount recipient)
+    (ft-mint? token-y amount recipient)
   )
 )
+
 

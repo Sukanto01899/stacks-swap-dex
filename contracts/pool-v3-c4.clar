@@ -1,17 +1,9 @@
-;; ============================================================================
-;; STACKS DEX - AMM Pool V2 (Compatible with ALEX token restrictions)
-;; ============================================================================
-;; 
-;; This version works with tokens that require tx-sender == sender or
-;; contract-caller == sender for transfers (like ALEX token).
-;;
-;; The user must first transfer tokens TO the pool, then call swap.
-;; The pool tracks pending deposits per user.
-;; ============================================================================
+;; STACKS DEX - Constant Product AMM Pool Contract V3 (Clarity 3)
+;; Features: Bidirectional swaps, skip fee when sender == recipient
 
-(use-trait ft-trait .sip-010-trait-ft-standard-v2.sip-010-trait)
+(use-trait ft-trait .sip-010-trait-ft-standard-v2-c4.sip-010-trait)
 
-;; Fee: 30 basis points = 0.30%
+;; Fee configuration: 30 basis points = 0.30%
 (define-constant FEE_BPS u30)
 (define-constant BPS_DENOM u10000)
 
@@ -21,21 +13,20 @@
 (define-constant ERR_DEADLINE_EXPIRED (err u102))
 (define-constant ERR_SLIPPAGE_EXCEEDED (err u103))
 (define-constant ERR_INSUFFICIENT_LIQUIDITY (err u104))
-(define-constant ERR_TRANSFER_FAILED (err u105))
+(define-constant ERR_TRANSFER_X_FAILED (err u105))
+(define-constant ERR_TRANSFER_Y_FAILED (err u106))
+(define-constant ERR_FEE_TRANSFER_FAILED (err u107))
 (define-constant ERR_ALREADY_INITIALIZED (err u200))
 (define-constant ERR_NOT_INITIALIZED (err u201))
-(define-constant ERR_NO_DEPOSIT (err u202))
 
-;; State
+;; State variables
 (define-data-var fee-recipient (optional principal) none)
 (define-data-var reserve-x uint u0)
 (define-data-var reserve-y uint u0)
-(define-data-var total-fees-collected uint u0)
+(define-data-var total-fees-x uint u0)
+(define-data-var total-fees-y uint u0)
 
-;; Track deposits per user (for the 2-step swap process)
-(define-map user-deposits principal uint)
-
-;; Read functions
+;; Read-only functions
 (define-read-only (get-reserves)
   { x: (var-get reserve-x), y: (var-get reserve-y) })
 
@@ -43,10 +34,7 @@
   { fee-bps: FEE_BPS, denom: BPS_DENOM, recipient: (var-get fee-recipient) })
 
 (define-read-only (get-total-fees)
-  (var-get total-fees-collected))
-
-(define-read-only (get-user-deposit (user principal))
-  (default-to u0 (map-get? user-deposits user)))
+  { fees-x: (var-get total-fees-x), fees-y: (var-get total-fees-y) })
 
 (define-read-only (quote-x-for-y (dx uint))
   (let ((rx (var-get reserve-x)) (ry (var-get reserve-y)))
@@ -56,22 +44,22 @@
           (dx-to-pool (- dx fee))
           (dy (/ (* ry dx-to-pool) (+ rx dx-to-pool))))
       (asserts! (< dy ry) ERR_INSUFFICIENT_LIQUIDITY)
-      (ok dy))))
+      (ok { dy: dy, fee: fee }))))
 
-(define-read-only (calculate-fee (dx uint))
-  (/ (* dx FEE_BPS) BPS_DENOM))
+(define-read-only (quote-y-for-x (dy uint))
+  (let ((rx (var-get reserve-x)) (ry (var-get reserve-y)))
+    (asserts! (> dy u0) ERR_ZERO_INPUT)
+    (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
+    (let ((fee (/ (* dy FEE_BPS) BPS_DENOM))
+          (dy-to-pool (- dy fee))
+          (dx (/ (* rx dy-to-pool) (+ ry dy-to-pool))))
+      (asserts! (< dx rx) ERR_INSUFFICIENT_LIQUIDITY)
+      (ok { dx: dx, fee: fee }))))
 
-;; Step 1: User deposits tokens X directly to this contract
-;; User calls: (contract-call? token-x transfer amount tx-sender pool-contract none)
-;; Then calls this to register the deposit
-(define-public (register-deposit (amount uint))
-  (begin
-    (asserts! (> amount u0) ERR_ZERO_INPUT)
-    (map-set user-deposits tx-sender (+ (get-user-deposit tx-sender) amount))
-    (ok amount)))
+(define-read-only (calculate-fee (amount uint))
+  (/ (* amount FEE_BPS) BPS_DENOM))
 
-;; Alternative: Single-step swap for tokens that DON'T have restrictions
-;; The user calls this, and we transfer on their behalf
+;; Swap X for Y (e.g., ALEX -> USDA)
 (define-public (swap-x-for-y 
     (token-x <ft-trait>)
     (token-y <ft-trait>)
@@ -91,22 +79,23 @@
           (dy (/ (* ry dx-to-pool) (+ rx dx-to-pool))))
       (asserts! (>= dy min-dy) ERR_SLIPPAGE_EXCEEDED)
       (asserts! (< dy ry) ERR_INSUFFICIENT_LIQUIDITY)
-      ;; Transfer fee to fee recipient (if fee > 0)
-      (if (> fee u0)
-        (unwrap! (contract-call? token-x transfer fee sender fee-addr none) ERR_TRANSFER_FAILED)
+      ;; Transfer fee only if sender != fee recipient (skip self-transfer)
+      (if (and (> fee u0) (not (is-eq sender fee-addr)))
+        (unwrap! (contract-call? token-x transfer fee sender fee-addr none) ERR_FEE_TRANSFER_FAILED)
         true)
-      ;; Transfer dx-to-pool from sender to this contract
-      (unwrap! (contract-call? token-x transfer dx-to-pool sender (as-contract tx-sender) none) ERR_TRANSFER_FAILED)
-      ;; Transfer dy from pool to recipient
-      (unwrap! (as-contract (contract-call? token-y transfer dy tx-sender recipient none)) ERR_TRANSFER_FAILED)
+      ;; Transfer input tokens to pool
+      (unwrap! (contract-call? token-x transfer dx-to-pool sender (as-contract tx-sender) none) ERR_TRANSFER_X_FAILED)
+      ;; Transfer output tokens to recipient
+      (unwrap! (as-contract (contract-call? token-y transfer dy tx-sender recipient none)) ERR_TRANSFER_Y_FAILED)
       ;; Update reserves
       (var-set reserve-x (+ rx dx-to-pool))
       (var-set reserve-y (- ry dy))
-      (var-set total-fees-collected (+ (var-get total-fees-collected) fee))
+      ;; Track fees (even if not transferred for self-swaps)
+      (var-set total-fees-x (+ (var-get total-fees-x) fee))
       (ok { dx: dx, dy: dy, fee: fee, recipient: recipient }))))
 
-;; Swap for Y using tokens X -> Y (Y for X direction)
-(define-public (swap-y-for-x
+;; Swap Y for X (e.g., USDA -> ALEX)
+(define-public (swap-y-for-x 
     (token-x <ft-trait>)
     (token-y <ft-trait>)
     (dy uint)
@@ -125,21 +114,22 @@
           (dx (/ (* rx dy-to-pool) (+ ry dy-to-pool))))
       (asserts! (>= dx min-dx) ERR_SLIPPAGE_EXCEEDED)
       (asserts! (< dx rx) ERR_INSUFFICIENT_LIQUIDITY)
-      ;; Transfer fee to fee recipient
-      (if (> fee u0)
-        (unwrap! (contract-call? token-y transfer fee sender fee-addr none) ERR_TRANSFER_FAILED)
+      ;; Transfer fee only if sender != fee recipient (skip self-transfer)
+      (if (and (> fee u0) (not (is-eq sender fee-addr)))
+        (unwrap! (contract-call? token-y transfer fee sender fee-addr none) ERR_FEE_TRANSFER_FAILED)
         true)
-      ;; Transfer dy-to-pool from sender to pool
-      (unwrap! (contract-call? token-y transfer dy-to-pool sender (as-contract tx-sender) none) ERR_TRANSFER_FAILED)
-      ;; Transfer dx from pool to recipient
-      (unwrap! (as-contract (contract-call? token-x transfer dx tx-sender recipient none)) ERR_TRANSFER_FAILED)
+      ;; Transfer input tokens to pool
+      (unwrap! (contract-call? token-y transfer dy-to-pool sender (as-contract tx-sender) none) ERR_TRANSFER_Y_FAILED)
+      ;; Transfer output tokens to recipient
+      (unwrap! (as-contract (contract-call? token-x transfer dx tx-sender recipient none)) ERR_TRANSFER_X_FAILED)
       ;; Update reserves
       (var-set reserve-x (- rx dx))
       (var-set reserve-y (+ ry dy-to-pool))
-      (var-set total-fees-collected (+ (var-get total-fees-collected) fee))
-      (ok { dy: dy, dx: dx, fee: fee, recipient: recipient }))))
+      ;; Track fees
+      (var-set total-fees-y (+ (var-get total-fees-y) fee))
+      (ok { dx: dx, dy: dy, fee: fee, recipient: recipient }))))
 
-;; Initialize pool with liquidity
+;; Initialize pool with initial liquidity
 (define-public (initialize-pool 
     (token-x <ft-trait>)
     (token-y <ft-trait>)
@@ -148,20 +138,25 @@
   (begin
     (asserts! (and (is-eq (var-get reserve-x) u0) (is-eq (var-get reserve-y) u0)) ERR_ALREADY_INITIALIZED)
     (var-set fee-recipient (some tx-sender))
-    (unwrap! (contract-call? token-x transfer amount-x tx-sender (as-contract tx-sender) none) ERR_TRANSFER_FAILED)
-    (unwrap! (contract-call? token-y transfer amount-y tx-sender (as-contract tx-sender) none) ERR_TRANSFER_FAILED)
+    (unwrap! (contract-call? token-x transfer amount-x tx-sender (as-contract tx-sender) none) ERR_TRANSFER_X_FAILED)
+    (unwrap! (contract-call? token-y transfer amount-y tx-sender (as-contract tx-sender) none) ERR_TRANSFER_Y_FAILED)
     (var-set reserve-x amount-x)
     (var-set reserve-y amount-y)
     (ok { x: amount-x, y: amount-y, fee-recipient: tx-sender })))
 
+;; Contract info
 (define-read-only (get-contract-info)
   { 
-    name: "stacks-dex-pool-v2", 
-    version: "2.0.0", 
+    name: "stacks-dex-pool-v3-c4", 
+    version: "3.0.0", 
     fee-bps: FEE_BPS, 
     fee-recipient: (var-get fee-recipient), 
     reserve-x: (var-get reserve-x), 
     reserve-y: (var-get reserve-y), 
-    total-fees: (var-get total-fees-collected) 
+    total-fees-x: (var-get total-fees-x),
+    total-fees-y: (var-get total-fees-y)
   })
+
+
+
 

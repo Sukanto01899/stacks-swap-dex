@@ -1,7 +1,7 @@
 ;; STACKS DEX - Pool Contract V4 (Clarity 3)
 ;; Features: Bidirectional swaps, LP shares, add/remove liquidity
 
-(use-trait ft-trait .sip-010-trait-ft-standard-v2.sip-010-trait)
+(use-trait ft-trait .sip-010-trait-ft-standard-v2-c4.sip-010-trait)
 
 ;; Fee configuration: 30 basis points = 0.30%
 (define-constant FEE_BPS u30)
@@ -276,7 +276,7 @@
 ;; Contract info
 (define-read-only (get-contract-info)
   { 
-    name: "stacks-dex-pool-v4", 
+    name: "stacks-dex-pool-v-c4", 
     version: "4.0.0", 
     fee-bps: FEE_BPS, 
     fee-recipient: (var-get fee-recipient), 
@@ -286,4 +286,6 @@
     total-fees-x: (var-get total-fees-x),
     total-fees-y: (var-get total-fees-y)
   })
+
+
 
