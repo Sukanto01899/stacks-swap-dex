@@ -25,8 +25,8 @@ if (!DEPLOYER_MNEMONIC) {
 }
 
 const TOKEN_CONTRACTS = {
-  x: { contractName: 'token-x' },
-  y: { contractName: 'token-y' },
+  x: { contractName: 'token-x-c4' },
+  y: { contractName: 'token-y-c4' },
 }
 
 const ALLOWED_TOKENS = Object.keys(TOKEN_CONTRACTS)
@@ -79,12 +79,12 @@ app.post('/faucet', async (req, res) => {
       return res.status(503).json({ error: 'Faucet not ready yet' })
     }
 
-  const { address, token } = req.body || {}
-  if (!isValidAddress(address)) {
-    return res
-      .status(400)
-      .json({ error: 'Invalid Stacks address (must be testnet: starts with ST or SN)' })
-  }
+    const { address, token } = req.body || {}
+    if (!isValidAddress(address)) {
+      return res
+        .status(400)
+        .json({ error: 'Invalid Stacks address (must be testnet: starts with ST or SN)' })
+    }
 
     if (!ALLOWED_TOKENS.includes(token)) {
       return res
