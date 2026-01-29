@@ -22,6 +22,7 @@
 (define-constant ERR_INSUFFICIENT_LP_BALANCE (err u202))
 (define-constant ERR_ZERO_SHARES (err u203))
 (define-constant ERR_MIN_LIQUIDITY (err u204))
+(define-constant ERR_EXCEEDS_MAX_AMOUNT (err u210))
 
 ;; State variables
 (define-data-var fee-recipient (optional principal) none)
@@ -102,6 +103,52 @@
             (optimal-x (/ (* shares rx) supply))
             (optimal-y (/ (* shares ry) supply)))
         (ok { shares: shares, optimal-x: optimal-x, optimal-y: optimal-y })))))
+
+(define-public (add-liquidity-max-simple
+    (token-x <ft-trait>)
+    (token-y <ft-trait>)
+    (max-amount-x uint)
+    (max-amount-y uint)
+    (min-shares uint))
+  (let ((rx (var-get reserve-x))
+        (ry (var-get reserve-y))
+        (supply (var-get total-supply))
+        (sender tx-sender))
+    
+    (asserts! (> supply u0) ERR_NOT_INITIALIZED)
+    (asserts! (and (> max-amount-x u0) (> max-amount-y u0)) ERR_ZERO_INPUT)
+    
+    ;; Calculate the maximum shares possible with given max amounts
+    (let ((max-shares-from-x (/ (* max-amount-x supply) rx))
+          (max-shares-from-y (/ (* max-amount-y supply) ry))
+          (max-possible-shares (if (< max-shares-from-x max-shares-from-y) 
+                                  max-shares-from-x 
+                                  max-shares-from-y)))
+      
+      ;; Calculate actual amounts based on max possible shares
+      (let ((actual-x (/ (* max-possible-shares rx) supply))
+            (actual-y (/ (* max-possible-shares ry) supply))
+            (shares max-possible-shares))
+        
+        ;; Ensure we don't exceed user's maximums (should always be true by calculation)
+        (asserts! (and (<= actual-x max-amount-x) (<= actual-y max-amount-y)) 
+                 ERR_SLIPPAGE_EXCEEDED)
+        (asserts! (>= shares min-shares) ERR_SLIPPAGE_EXCEEDED)
+        (asserts! (> shares u0) ERR_ZERO_SHARES)
+        
+        ;; Transfer tokens
+        (unwrap! (contract-call? token-x transfer actual-x sender (as-contract tx-sender) none) 
+                 ERR_TRANSFER_X_FAILED)
+        (unwrap! (contract-call? token-y transfer actual-y sender (as-contract tx-sender) none) 
+                 ERR_TRANSFER_Y_FAILED)
+        
+        ;; Update state
+        (var-set reserve-x (+ rx actual-x))
+        (var-set reserve-y (+ ry actual-y))
+        (var-set total-supply (+ supply shares))
+        (map-set lp-balances sender (+ (get-lp-balance sender) shares))
+        
+        (ok { shares: shares, x: actual-x, y: actual-y })))))
 
 (define-read-only (quote-remove-liquidity (shares uint))
   (let ((supply (var-get total-supply))
