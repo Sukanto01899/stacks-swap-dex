@@ -5,53 +5,53 @@ authors = []
 telemetry = true
 cache_dir = "./.cache"
 
-[contracts.sip-010-trait-ft-standard-v2-c4]
-path = "contracts/traits/sip-010-trait-c4.clar"
+[contracts.sip-010-trait-ft-standard-v2-c5]
+path = "contracts/traits/sip-010-trait-c5.clar"
 epoch = "latest"
 
-[contracts.token-x-c4]
-path = "contracts/test-tokens/token-x-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.token-x-c5]
+path = "contracts/test-tokens/token-x-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
-[contracts.token-y-c4]
-path = "contracts/test-tokens/token-y-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.token-y-c5]
+path = "contracts/test-tokens/token-y-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
-[contracts.pool-c4]
-path = "contracts/pool-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.pool-c5]
+path = "contracts/pool-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
-[contracts.pool-v-c4]
-path = "contracts/pool-v-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.pool-v-c5]
+path = "contracts/pool-v-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
-[contracts.pool-v2-c4]
-path = "contracts/pool-v2-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.pool-v2-c5]
+path = "contracts/pool-v2-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
-[contracts.pool-v3-c4]
-path = "contracts/pool-v3-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.pool-v3-c5]
+path = "contracts/pool-v3-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
-[contracts.pool-v4-c4]
-path = "contracts/pool-v4-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.pool-v4-c5]
+path = "contracts/pool-v4-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
-[contracts.pool-v5-c4]
-path = "contracts/pool-v5-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.pool-v5-c5]
+path = "contracts/pool-v5-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
-[contracts.pool-lp-c4]
-path = "contracts/pool-lp-c4.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c4"]
+[contracts.pool-lp-c5]
+path = "contracts/pool-lp-c5.clar"
+depends_on = ["sip-010-trait-ft-standard-v2-c5"]
 epoch = "latest"
 
 [repl.analysis]

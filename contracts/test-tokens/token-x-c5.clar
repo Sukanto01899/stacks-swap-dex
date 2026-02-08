@@ -4,7 +4,7 @@
 ;; A simple test token implementing SIP-010 for DEX testing
 ;; ============================================================================
 
-(impl-trait .sip-010-trait-ft-standard-v2-c4.sip-010-trait)
+(impl-trait .sip-010-trait-ft-standard-v2-c5.sip-010-trait)
 
 (define-fungible-token token-x)
 
@@ -44,21 +44,30 @@
   (ok TOKEN_URI)
 )
 
-(define-public (transfer (amount uint) (sender principal) (recipient principal) (memo (optional (buff 34))))
+(define-public (transfer
+    (amount uint)
+    (sender principal)
+    (recipient principal)
+    (memo (optional (buff 34)))
+  )
   (begin
     (asserts! (is-eq tx-sender sender) ERR_NOT_AUTHORIZED)
     (try! (ft-transfer? token-x amount sender recipient))
-    (match memo to-print (print to-print) 0x)
+    (match memo
+      to-print (print to-print)
+      0x
+    )
     (ok true)
   )
 )
 
 ;; Mint function for testing
-(define-public (mint (amount uint) (recipient principal))
+(define-public (mint
+    (amount uint)
+    (recipient principal)
+  )
   (begin
     (asserts! (is-eq tx-sender CONTRACT_OWNER) ERR_NOT_AUTHORIZED)
     (ft-mint? token-x amount recipient)
   )
 )
-
-
