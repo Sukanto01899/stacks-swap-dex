@@ -9,7 +9,7 @@
 ;; The pool tracks pending deposits per user.
 ;; ============================================================================
 
-(use-trait ft-trait .sip-010-trait-ft-standard-v2-c5.sip-010-trait)
+(use-trait ft-trait .sip-010-trait-ft-standard-v2-c6.sip-010-trait)
 
 ;; Fee: 30 basis points = 0.30%
 (define-constant FEE_BPS u30)

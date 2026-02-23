@@ -1,7 +1,7 @@
 ;; STACKS DEX - Constant Product AMM Pool Contract V3 (Clarity 3)
 ;; Features: Bidirectional swaps, skip fee when sender == recipient
 
-(use-trait ft-trait .sip-010-trait-ft-standard-v2-c5.sip-010-trait)
+(use-trait ft-trait .sip-010-trait-ft-standard-v2-c6.sip-010-trait)
 
 ;; Fee configuration: 30 basis points = 0.30%
 (define-constant FEE_BPS u30)

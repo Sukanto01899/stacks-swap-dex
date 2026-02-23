@@ -26,7 +26,7 @@
 ;; ============================================================================
 
 ;; SIP-010 Fungible Token Trait
-(use-trait ft-trait .sip-010-trait-ft-standard-v2-c5.sip-010-trait)
+(use-trait ft-trait .sip-010-trait-ft-standard-v2-c6.sip-010-trait)
 
 ;; ============================================================================
 ;; CONSTANTS
