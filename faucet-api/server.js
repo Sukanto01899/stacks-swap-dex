@@ -83,7 +83,7 @@ const runtimeByNetwork = {
 
 const isValidAddressForNetwork = (address, networkName) => {
   if (typeof address !== 'string') return false
-  if (networkName === 'mainnet') return /^SP[A-Z0-9]{38,}$/.test(address)
+  if (networkName === 'mainnet') return /^(SP|SM)[A-Z0-9]{38,}$/.test(address)
   return /^S[NT][A-Z0-9]{38,}$/.test(address)
 }
 
@@ -93,6 +93,96 @@ const getBaseNetwork = (networkName) =>
   networkName === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET
 
 const getRuntime = (networkName) => runtimeByNetwork[networkName]
+
+const fetchNextNonce = async (runtime) => {
+  const url = `${runtime.nodeUrl}/extended/v1/address/${runtime.senderAddress}/nonces`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const fallback = `${runtime.nodeUrl}/v2/accounts/${runtime.senderAddress}?proof=0`
+    const accountResponse = await fetch(fallback)
+    if (!accountResponse.ok) return null
+    const account = await accountResponse.json().catch(() => ({}))
+    const next = Number(account?.nonce)
+    return Number.isFinite(next) ? next : null
+  }
+  const data = await response.json().catch(() => ({}))
+  const next = Number(
+    data?.possible_next_nonce ??
+      data?.detected_mempool_nonces?.[0] ??
+      data?.last_executed_tx_nonce
+  )
+  return Number.isFinite(next) ? next : null
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const isRetryableNonceError = (error, reason) =>
+  /nonce|mempool|chaining/i.test(String(error || '')) ||
+  /nonce|mempool|chaining/i.test(String(reason || ''))
+
+const submitMint = async ({
+  runtime,
+  contractName,
+  recipient,
+  amount,
+  maxAttempts = 3,
+}) => {
+  let attempt = 0
+  let lastError = null
+
+  while (attempt < maxAttempts) {
+    attempt += 1
+    const nextNonce = await fetchNextNonce(runtime)
+    const callOptions = {
+      contractAddress: runtime.contractAddress,
+      contractName,
+      functionName: 'mint',
+      functionArgs: [uintCV(amount), standardPrincipalCV(recipient)],
+      senderKey,
+      network: runtime.network,
+      postConditionMode: PostConditionMode.Deny,
+      anchorMode: AnchorMode.Any,
+      ...(nextNonce !== null ? { nonce: BigInt(nextNonce) } : {}),
+    }
+
+    const tx = await makeContractCall(callOptions)
+    const fee =
+      tx.auth?.spendingCondition?.fee ?? tx.auth?.originSpendingCondition?.fee ?? 0n
+
+    const response = await broadcastTransaction({
+      transaction: tx,
+      network: runtime.network,
+    })
+
+    if (!('error' in response)) {
+      return {
+        ok: true,
+        tx,
+        fee,
+        nonce: nextNonce,
+      }
+    }
+
+    lastError = response
+    if (!isRetryableNonceError(response.error, response.reason) || attempt >= maxAttempts) {
+      return {
+        ok: false,
+        error: response.error || 'Broadcast failed',
+        reason: response.reason || null,
+        nonce: nextNonce,
+      }
+    }
+
+    await wait(500 * attempt)
+  }
+
+  return {
+    ok: false,
+    error: lastError?.error || 'Broadcast failed',
+    reason: lastError?.reason || null,
+    nonce: null,
+  }
+}
 
 async function initWallet() {
   const seed = await mnemonicToSeed(DEPLOYER_MNEMONIC)
@@ -158,7 +248,7 @@ app.post('/faucet', async (req, res) => {
 
     if (!isValidAddressForNetwork(address, networkName)) {
       const prefixHint =
-        networkName === 'mainnet' ? 'SP...' : 'ST... or SN...'
+        networkName === 'mainnet' ? 'SP... or SM...' : 'ST... or SN...'
       return res.status(400).json({
         error: `Invalid ${networkName} address format. Expected ${prefixHint}.`,
       })
@@ -172,41 +262,30 @@ app.post('/faucet', async (req, res) => {
     }
 
     const { contractName } = TOKEN_CONTRACTS[token]
-    const callOptions = {
-      contractAddress: runtime.contractAddress,
+    const minted = await submitMint({
+      runtime,
       contractName,
-      functionName: 'mint',
-      functionArgs: [uintCV(amountWithDecimals), standardPrincipalCV(address)],
-      senderKey,
-      network: runtime.network,
-      postConditionMode: PostConditionMode.Deny,
-      anchorMode: AnchorMode.Any,
-    }
-
-    const tx = await makeContractCall(callOptions)
-    const fee =
-      tx.auth?.spendingCondition?.fee ?? tx.auth?.originSpendingCondition?.fee ?? 0n
-
-    const response = await broadcastTransaction({
-      transaction: tx,
-      network: runtime.network,
+      recipient: address,
+      amount: amountWithDecimals,
     })
 
-    if ('error' in response) {
+    if (!minted.ok) {
       return res.status(500).json({
-        error: response.error || 'Broadcast failed',
-        reason: response.reason || null,
+        error: minted.error || 'Broadcast failed',
+        reason: minted.reason || null,
         network: networkName,
+        nonce: minted.nonce !== null ? String(minted.nonce) : null,
       })
     }
 
     return res.json({
-      txid: tx.txid(),
+      txid: minted.tx.txid(),
       network: networkName,
       contract: `${runtime.contractAddress}.${contractName}`,
       amount: amountWithDecimals.toString(),
       recipient: address,
-      fee: fee.toString(),
+      fee: minted.fee.toString(),
+      nonce: minted.nonce !== null ? String(minted.nonce) : null,
     })
   } catch (error) {
     console.error('Faucet error', error)
