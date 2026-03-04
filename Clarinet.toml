@@ -5,53 +5,53 @@ authors = []
 telemetry = true
 cache_dir = "./.cache"
 
-[contracts.sip-010-trait-ft-standard-v2-c6]
+[contracts.sip010-ft-trait]
 path = "contracts/traits/sip-010-trait-c6.clar"
 epoch = "latest"
 
-[contracts.token-x-c6]
+[contracts.dex-token-x]
 path = "contracts/test-tokens/token-x-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
-[contracts.token-y-c6]
+[contracts.dex-token-y]
 path = "contracts/test-tokens/token-y-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
-[contracts.pool-c6]
+[contracts.dex-pool-basic]
 path = "contracts/pool-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
-[contracts.pool-v-c6]
+[contracts.dex-pool-v1]
 path = "contracts/pool-v-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
-[contracts.pool-v2-c6]
+[contracts.dex-pool-v2]
 path = "contracts/pool-v2-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
-[contracts.pool-v3-c6]
+[contracts.dex-pool-v3]
 path = "contracts/pool-v3-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
-[contracts.pool-v4-c6]
+[contracts.dex-pool-v4]
 path = "contracts/pool-v4-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
-[contracts.pool-v5-c6]
+[contracts.dex-pool-v5]
 path = "contracts/pool-v5-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
-[contracts.pool-lp-c6]
+[contracts.dex-pool-lp]
 path = "contracts/pool-lp-c6.clar"
-depends_on = ["sip-010-trait-ft-standard-v2-c6"]
+depends_on = ["sip010-ft-trait"]
 epoch = "latest"
 
 [repl.analysis]
@@ -65,5 +65,4 @@ check_checker = { trusted_sender = false, trusted_caller = false, callee_filter 
 # warning, if it gets checked inside. This check will also propagate up to the
 # caller.
 # More informations: https://www.hiro.so/blog/new-safety-checks-in-clarinet
-
 

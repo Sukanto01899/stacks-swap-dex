@@ -13,32 +13,23 @@ app.use(express.json())
 
 const {
   DEPLOYER_MNEMONIC,
-  STACKS_NODE,
-  STACKS_NETWORK = 'mainnet',
-  CONTRACT_ADDRESS,
+  STACKS_NETWORK = 'testnet',
+  STACKS_NODE = '',
+  STACKS_NODE_MAINNET = '',
+  STACKS_NODE_TESTNET = '',
+  CONTRACT_ADDRESS = '',
+  CONTRACT_ADDRESS_MAINNET = '',
+  CONTRACT_ADDRESS_TESTNET = '',
   FAUCET_PORT = 8787,
   FAUCET_AMOUNT = '5000',
+  FAUCET_ALLOW_MAINNET = 'false',
 } = process.env
 
 if (!DEPLOYER_MNEMONIC) {
   throw new Error('DEPLOYER_MNEMONIC is required for the faucet to mint tokens.')
 }
 
-const TOKEN_CONTRACTS = {
-  x: { contractName: 'token-x-c4' },
-  y: { contractName: 'token-y-c4' },
-}
-
-const ALLOWED_TOKENS = Object.keys(TOKEN_CONTRACTS)
-const amountWithDecimals = BigInt(Math.floor(Number(FAUCET_AMOUNT)) * 1_000_000)
-
-const isValidAddress = (addr) =>
-  typeof addr === 'string' && /^S[PNT][A-Z0-9]{38,}/.test(addr)
-
-let senderKey
-let senderAddress
-let network
-const { createNetwork, STACKS_TESTNET, STACKS_MAINNET } = StacksNetworkPkg
+const { createNetwork, STACKS_MAINNET, STACKS_TESTNET } = StacksNetworkPkg
 const {
   AnchorMode,
   PostConditionMode,
@@ -49,28 +40,99 @@ const {
   uintCV,
 } = StxTx
 
+const TOKEN_CONTRACTS = {
+  x: { contractName: 'dex-token-x' },
+  y: { contractName: 'dex-token-y' },
+}
+
+const NETWORK_NAMES = ['mainnet', 'testnet']
+const ALLOWED_TOKENS = Object.keys(TOKEN_CONTRACTS)
+const ALLOW_MAINNET = String(FAUCET_ALLOW_MAINNET).toLowerCase() === 'true'
+
+const amountInt = Number.parseInt(String(FAUCET_AMOUNT), 10)
+if (!Number.isFinite(amountInt) || amountInt <= 0) {
+  throw new Error('FAUCET_AMOUNT must be a positive integer.')
+}
+const amountWithDecimals = BigInt(amountInt) * 1_000_000n
+
+const normalizeNetwork = (value) => {
+  const v = String(value || '').trim().toLowerCase()
+  return NETWORK_NAMES.includes(v) ? v : null
+}
+
+const DEFAULT_NETWORK = normalizeNetwork(STACKS_NETWORK) || 'testnet'
+const DEFAULT_NODES = {
+  mainnet: 'https://api.hiro.so',
+  testnet: 'https://api.testnet.hiro.so',
+}
+
+const runtimeByNetwork = {
+  mainnet: {
+    nodeUrl: STACKS_NODE_MAINNET || STACKS_NODE || DEFAULT_NODES.mainnet,
+    contractAddress: CONTRACT_ADDRESS_MAINNET || CONTRACT_ADDRESS || '',
+    senderAddress: '',
+    network: null,
+  },
+  testnet: {
+    nodeUrl: STACKS_NODE_TESTNET || STACKS_NODE || DEFAULT_NODES.testnet,
+    contractAddress: CONTRACT_ADDRESS_TESTNET || CONTRACT_ADDRESS || '',
+    senderAddress: '',
+    network: null,
+  },
+}
+
+const isValidAddressForNetwork = (address, networkName) => {
+  if (typeof address !== 'string') return false
+  if (networkName === 'mainnet') return /^SP[A-Z0-9]{38,}$/.test(address)
+  return /^S[NT][A-Z0-9]{38,}$/.test(address)
+}
+
+let senderKey
+
+const getBaseNetwork = (networkName) =>
+  networkName === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET
+
+const getRuntime = (networkName) => runtimeByNetwork[networkName]
+
 async function initWallet() {
   const seed = await mnemonicToSeed(DEPLOYER_MNEMONIC)
   const rootNode = HDKey.fromMasterSeed(seed)
   senderKey = deriveStxPrivateKey({ rootNode, index: 0 })
-  const baseNetwork = STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET
-  const baseUrl =
-    STACKS_NODE ||
-    (STACKS_NETWORK === 'mainnet'
-      ? 'https://api.hiro.so'
-      : 'https://api.testnet.hiro.so')
-  senderAddress = getAddressFromPrivateKey(senderKey, baseNetwork)
-  network = createNetwork({
-    ...baseNetwork,
-    client: { baseUrl },
-  })
+
+  for (const networkName of NETWORK_NAMES) {
+    const runtime = getRuntime(networkName)
+    const baseNetwork = getBaseNetwork(networkName)
+    runtime.senderAddress = getAddressFromPrivateKey(senderKey, baseNetwork)
+    runtime.network = createNetwork({
+      ...baseNetwork,
+      client: { baseUrl: runtime.nodeUrl },
+    })
+  }
+
   console.log(
-    `Faucet ready. Sender: ${senderAddress} | Network: ${STACKS_NETWORK} | Node: ${baseUrl}`
+    `Faucet ready. Default network=${DEFAULT_NETWORK}, testnet sender=${runtimeByNetwork.testnet.senderAddress}, mainnet sender=${runtimeByNetwork.mainnet.senderAddress}`
   )
 }
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, sender: senderAddress, network: STACKS_NODE })
+  res.json({
+    ok: true,
+    defaultNetwork: DEFAULT_NETWORK,
+    allowMainnet: ALLOW_MAINNET,
+    amount: amountWithDecimals.toString(),
+    networks: {
+      testnet: {
+        node: runtimeByNetwork.testnet.nodeUrl,
+        sender: runtimeByNetwork.testnet.senderAddress || null,
+        hasContractAddress: Boolean(runtimeByNetwork.testnet.contractAddress),
+      },
+      mainnet: {
+        node: runtimeByNetwork.mainnet.nodeUrl,
+        sender: runtimeByNetwork.mainnet.senderAddress || null,
+        hasContractAddress: Boolean(runtimeByNetwork.mainnet.contractAddress),
+      },
+    },
+  })
 })
 
 app.post('/faucet', async (req, res) => {
@@ -79,11 +141,13 @@ app.post('/faucet', async (req, res) => {
       return res.status(503).json({ error: 'Faucet not ready yet' })
     }
 
-    const { address, token } = req.body || {}
-    if (!isValidAddress(address)) {
-      return res
-        .status(400)
-        .json({ error: 'Invalid Stacks address (must be testnet: starts with ST or SN)' })
+    const { address, token, network } = req.body || {}
+    const networkName = normalizeNetwork(network) || DEFAULT_NETWORK
+
+    if (networkName === 'mainnet' && !ALLOW_MAINNET) {
+      return res.status(403).json({
+        error: 'Mainnet faucet is disabled. Set FAUCET_ALLOW_MAINNET=true to enable.',
+      })
     }
 
     if (!ALLOWED_TOKENS.includes(token)) {
@@ -92,15 +156,29 @@ app.post('/faucet', async (req, res) => {
         .json({ error: `Invalid token. Use one of: ${ALLOWED_TOKENS.join(', ')}` })
     }
 
-    const { contractName } = TOKEN_CONTRACTS[token]
+    if (!isValidAddressForNetwork(address, networkName)) {
+      const prefixHint =
+        networkName === 'mainnet' ? 'SP...' : 'ST... or SN...'
+      return res.status(400).json({
+        error: `Invalid ${networkName} address format. Expected ${prefixHint}.`,
+      })
+    }
 
+    const runtime = getRuntime(networkName)
+    if (!runtime.contractAddress) {
+      return res.status(503).json({
+        error: `Missing contract address for ${networkName}. Set CONTRACT_ADDRESS_${networkName.toUpperCase()} or CONTRACT_ADDRESS.`,
+      })
+    }
+
+    const { contractName } = TOKEN_CONTRACTS[token]
     const callOptions = {
-      contractAddress: CONTRACT_ADDRESS,
+      contractAddress: runtime.contractAddress,
       contractName,
       functionName: 'mint',
       functionArgs: [uintCV(amountWithDecimals), standardPrincipalCV(address)],
       senderKey,
-      network,
+      network: runtime.network,
       postConditionMode: PostConditionMode.Deny,
       anchorMode: AnchorMode.Any,
     }
@@ -108,22 +186,33 @@ app.post('/faucet', async (req, res) => {
     const tx = await makeContractCall(callOptions)
     const fee =
       tx.auth?.spendingCondition?.fee ?? tx.auth?.originSpendingCondition?.fee ?? 0n
-    const response = await broadcastTransaction({ transaction: tx, network })
+
+    const response = await broadcastTransaction({
+      transaction: tx,
+      network: runtime.network,
+    })
 
     if ('error' in response) {
-      return res.status(500).json({ error: response.error, reason: response.reason })
+      return res.status(500).json({
+        error: response.error || 'Broadcast failed',
+        reason: response.reason || null,
+        network: networkName,
+      })
     }
 
-    res.json({
+    return res.json({
       txid: tx.txid(),
-      contract: `${CONTRACT_ADDRESS}.${contractName}`,
+      network: networkName,
+      contract: `${runtime.contractAddress}.${contractName}`,
       amount: amountWithDecimals.toString(),
       recipient: address,
       fee: fee.toString(),
     })
   } catch (error) {
     console.error('Faucet error', error)
-    res.status(500).json({ error: 'Internal faucet error' })
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal faucet error',
+    })
   }
 })
 

@@ -26,7 +26,7 @@
 ;; ============================================================================
 
 ;; SIP-010 Fungible Token Trait
-(use-trait ft-trait .sip-010-trait-ft-standard-v2-c6.sip-010-trait)
+(use-trait ft-trait .sip010-ft-trait.sip-010-trait)
 
 ;; ============================================================================
 ;; CONSTANTS
@@ -298,7 +298,7 @@
 ;; Get contract information
 (define-read-only (get-contract-info)
   {
-    name: "stacks-dex-pool-c4",
+    name: "dex-pool-basic",
     version: "1.0.0",
     fee-bps: FEE_BPS,
     fee-recipient: (var-get fee-recipient),
@@ -307,3 +307,4 @@
     total-fees: (var-get total-fees-collected),
   }
 )
+
