@@ -10,7 +10,6 @@
 
 (define-constant CONTRACT_OWNER tx-sender)
 (define-constant ERR_NOT_AUTHORIZED (err u401))
-(define-constant ERR_INSUFFICIENT_BALANCE (err u402))
 
 ;; Token metadata
 (define-constant TOKEN_NAME "Test Token X")

@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { Cl, cvToValue } from '@stacks/transactions'
+import { Cl, cvToString } from '@stacks/transactions'
 
-describe('token-x-c4', () => {
+const unwrapOkUint = (result: unknown, label: string): bigint => {
+  const raw = cvToString(result as Parameters<typeof cvToString>[0])
+  const match = raw.match(/^\(ok u([0-9]+)\)$/)
+  if (!match) {
+    throw new Error(`Expected ok ${label} response`)
+  }
+  return BigInt(match[1])
+}
+
+describe('token-x-c6', () => {
   it('allows the contract owner to mint and updates balance', () => {
     const accounts = simnet.getAccounts()
     const deployer = accounts.get('deployer')
@@ -10,19 +19,15 @@ describe('token-x-c4', () => {
     if (!deployer || !wallet1) throw new Error('Missing test accounts')
 
     const beforeBalance = simnet.callReadOnlyFn(
-      'token-x-c4',
+      'token-x-c6',
       'get-balance',
       [Cl.principal(wallet1)],
       deployer
     )
-    const beforeValue = cvToValue(beforeBalance.result) as {
-      success: boolean
-      value: string
-    }
-    if (!beforeValue.success) throw new Error('Expected ok balance response')
+    const beforeValue = unwrapOkUint(beforeBalance.result, 'balance')
 
     const mint = simnet.callPublicFn(
-      'token-x-c4',
+      'token-x-c6',
       'mint',
       [Cl.uint(1_000), Cl.principal(wallet1)],
       deployer
@@ -30,17 +35,13 @@ describe('token-x-c4', () => {
     expect(mint.result).toBeOk(Cl.bool(true))
 
     const afterBalance = simnet.callReadOnlyFn(
-      'token-x-c4',
+      'token-x-c6',
       'get-balance',
       [Cl.principal(wallet1)],
       deployer
     )
-    const afterValue = cvToValue(afterBalance.result) as {
-      success: boolean
-      value: string
-    }
-    if (!afterValue.success) throw new Error('Expected ok balance response')
-    expect(BigInt(afterValue.value)).toBe(BigInt(beforeValue.value) + 1000n)
+    const afterValue = unwrapOkUint(afterBalance.result, 'balance')
+    expect(afterValue).toBe(beforeValue + 1000n)
   })
 
   it('rejects mint calls from non-owner', () => {
@@ -51,7 +52,7 @@ describe('token-x-c4', () => {
     if (!deployer || !wallet1) throw new Error('Missing test accounts')
 
     const mint = simnet.callPublicFn(
-      'token-x-c4',
+      'token-x-c6',
       'mint',
       [Cl.uint(500), Cl.principal(wallet1)],
       wallet1
@@ -69,14 +70,14 @@ describe('token-x-c4', () => {
     if (!deployer || !wallet1 || !wallet2) throw new Error('Missing test accounts')
 
     simnet.callPublicFn(
-      'token-x-c4',
+      'token-x-c6',
       'mint',
       [Cl.uint(2_000), Cl.principal(wallet1)],
       deployer
     )
 
     const transfer = simnet.callPublicFn(
-      'token-x-c4',
+      'token-x-c6',
       'transfer',
       [Cl.uint(750), Cl.principal(wallet1), Cl.principal(wallet2), Cl.none()],
       wallet1
@@ -85,21 +86,17 @@ describe('token-x-c4', () => {
     expect(transfer.result).toBeOk(Cl.bool(true))
 
     const wallet2Balance = simnet.callReadOnlyFn(
-      'token-x-c4',
+      'token-x-c6',
       'get-balance',
       [Cl.principal(wallet2)],
       deployer
     )
-    const wallet2Value = cvToValue(wallet2Balance.result) as {
-      success: boolean
-      value: string
-    }
-    if (!wallet2Value.success) throw new Error('Expected ok balance response')
-    expect(BigInt(wallet2Value.value)).toBeGreaterThanOrEqual(750n)
+    const wallet2Value = unwrapOkUint(wallet2Balance.result, 'balance')
+    expect(wallet2Value).toBeGreaterThanOrEqual(750n)
   })
 })
 
-describe('token-y-c4', () => {
+describe('token-y-c6', () => {
   it('tracks total supply after mint', () => {
     const accounts = simnet.getAccounts()
     const deployer = accounts.get('deployer')
@@ -108,19 +105,15 @@ describe('token-y-c4', () => {
     if (!deployer || !wallet1) throw new Error('Missing test accounts')
 
     const before = simnet.callReadOnlyFn(
-      'token-y-c4',
+      'token-y-c6',
       'get-total-supply',
       [],
       deployer
     )
-    const beforeValue = cvToValue(before.result) as {
-      success: boolean
-      value: string
-    }
-    if (!beforeValue.success) throw new Error('Expected ok supply response')
+    const beforeValue = unwrapOkUint(before.result, 'supply')
 
     const mint = simnet.callPublicFn(
-      'token-y-c4',
+      'token-y-c6',
       'mint',
       [Cl.uint(3_333), Cl.principal(wallet1)],
       deployer
@@ -128,16 +121,12 @@ describe('token-y-c4', () => {
     expect(mint.result).toBeOk(Cl.bool(true))
 
     const after = simnet.callReadOnlyFn(
-      'token-y-c4',
+      'token-y-c6',
       'get-total-supply',
       [],
       deployer
     )
-    const afterValue = cvToValue(after.result) as {
-      success: boolean
-      value: string
-    }
-    if (!afterValue.success) throw new Error('Expected ok supply response')
-    expect(BigInt(afterValue.value)).toBe(BigInt(beforeValue.value) + 3333n)
+    const afterValue = unwrapOkUint(after.result, 'supply')
+    expect(afterValue).toBe(beforeValue + 3333n)
   })
 })

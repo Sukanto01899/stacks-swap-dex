@@ -1,4 +1,4 @@
-;; STACKS DEX - Pool Contract V4 (Clarity 3)
+;; STACKS DEX - Pool Contract V5 (Clarity 3)
 ;; Features: Bidirectional swaps, LP shares, add/remove liquidity
 
 (use-trait ft-trait .sip-010-trait-ft-standard-v2-c6.sip-010-trait)
@@ -102,6 +102,23 @@
   )
 )
 
+(define-private (min-uint (a uint) (b uint))
+  (if (< a b) a b)
+)
+
+(define-private (quote-out (amount-in uint) (reserve-in uint) (reserve-out uint))
+  (let (
+      (fee (/ (* amount-in FEE_BPS) BPS_DENOM))
+      (amount-after-fee (- amount-in fee))
+    )
+    {
+      amount-out: (/ (* reserve-out amount-after-fee) (+ reserve-in amount-after-fee)),
+      fee: fee,
+      amount-after-fee: amount-after-fee,
+    }
+  )
+)
+
 (define-read-only (quote-x-for-y (dx uint))
   (let (
       (rx (var-get reserve-x))
@@ -110,14 +127,13 @@
     (asserts! (> dx u0) ERR_ZERO_INPUT)
     (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
     (let (
-        (fee (/ (* dx FEE_BPS) BPS_DENOM))
-        (dx-to-pool (- dx fee))
-        (dy (/ (* ry dx-to-pool) (+ rx dx-to-pool)))
+        (quote (quote-out dx rx ry))
+        (dy (get amount-out quote))
       )
       (asserts! (< dy ry) ERR_INSUFFICIENT_LIQUIDITY)
       (ok {
         dy: dy,
-        fee: fee,
+        fee: (get fee quote),
       })
     )
   )
@@ -131,14 +147,13 @@
     (asserts! (> dy u0) ERR_ZERO_INPUT)
     (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
     (let (
-        (fee (/ (* dy FEE_BPS) BPS_DENOM))
-        (dy-to-pool (- dy fee))
-        (dx (/ (* rx dy-to-pool) (+ ry dy-to-pool)))
+        (quote (quote-out dy ry rx))
+        (dx (get amount-out quote))
       )
       (asserts! (< dx rx) ERR_INSUFFICIENT_LIQUIDITY)
       (ok {
         dx: dx,
-        fee: fee,
+        fee: (get fee quote),
       })
     )
   )
@@ -164,10 +179,7 @@
       (let (
           (shares-from-x (/ (* amount-x supply) rx))
           (shares-from-y (/ (* amount-y supply) ry))
-          (shares (if (< shares-from-x shares-from-y)
-            shares-from-x
-            shares-from-y
-          ))
+          (shares (min-uint shares-from-x shares-from-y))
           (optimal-x (/ (* shares rx) supply))
           (optimal-y (/ (* shares ry) supply))
         )
@@ -246,9 +258,10 @@
     (asserts! (> dx u0) ERR_ZERO_INPUT)
     (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
     (let (
-        (fee (/ (* dx FEE_BPS) BPS_DENOM))
-        (dx-to-pool (- dx fee))
-        (dy (/ (* ry dx-to-pool) (+ rx dx-to-pool)))
+        (quote (quote-out dx rx ry))
+        (fee (get fee quote))
+        (dx-to-pool (get amount-after-fee quote))
+        (dy (get amount-out quote))
       )
       (asserts! (>= dy min-dy) ERR_SLIPPAGE_EXCEEDED)
       (asserts! (< dy ry) ERR_INSUFFICIENT_LIQUIDITY)
@@ -300,9 +313,10 @@
     (asserts! (> dy u0) ERR_ZERO_INPUT)
     (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
     (let (
-        (fee (/ (* dy FEE_BPS) BPS_DENOM))
-        (dy-to-pool (- dy fee))
-        (dx (/ (* rx dy-to-pool) (+ ry dy-to-pool)))
+        (quote (quote-out dy ry rx))
+        (fee (get fee quote))
+        (dy-to-pool (get amount-after-fee quote))
+        (dx (get amount-out quote))
       )
       (asserts! (>= dx min-dx) ERR_SLIPPAGE_EXCEEDED)
       (asserts! (< dx rx) ERR_INSUFFICIENT_LIQUIDITY)
@@ -395,10 +409,7 @@
     (let (
         (shares-from-x (/ (* amount-x supply) rx))
         (shares-from-y (/ (* amount-y supply) ry))
-        (shares (if (< shares-from-x shares-from-y)
-          shares-from-x
-          shares-from-y
-        ))
+        (shares (min-uint shares-from-x shares-from-y))
         ;; Calculate actual amounts to deposit (proportional)
         (actual-x (/ (* shares rx) supply))
         (actual-y (/ (* shares ry) supply))
@@ -483,8 +494,8 @@
 ;; Contract info
 (define-read-only (get-contract-info)
   {
-    name: "stacks-dex-pool-v5-c4",
-    version: "4.0.0",
+    name: "stacks-dex-pool-v5-c6",
+    version: "5.0.0",
     fee-bps: FEE_BPS,
     fee-recipient: (var-get fee-recipient),
     reserve-x: (var-get reserve-x),
