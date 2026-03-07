@@ -7,6 +7,8 @@ import * as StxTx from '@stacks/transactions'
 import * as StacksNetworkPkg from '@stacks/network'
 import { deriveStxPrivateKey } from '@stacks/wallet-sdk'
 
+
+// Faucet server for minting test tokens on Stacks testnet or mainnet.
 const app = express()
 app.use(cors())
 app.use(express.json())
@@ -108,8 +110,8 @@ const fetchNextNonce = async (runtime) => {
   const data = await response.json().catch(() => ({}))
   const next = Number(
     data?.possible_next_nonce ??
-      data?.detected_mempool_nonces?.[0] ??
-      data?.last_executed_tx_nonce
+    data?.detected_mempool_nonces?.[0] ??
+    data?.last_executed_tx_nonce
   )
   return Number.isFinite(next) ? next : null
 }
