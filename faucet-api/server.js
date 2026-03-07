@@ -31,6 +31,7 @@ if (!DEPLOYER_MNEMONIC) {
   throw new Error('DEPLOYER_MNEMONIC is required for the faucet to mint tokens.')
 }
 
+// Importing Stacks libraries and setting up constants for the faucet configuration, including network details, contract addresses, and minting parameters.
 const { createNetwork, STACKS_MAINNET, STACKS_TESTNET } = StacksNetworkPkg
 const {
   AnchorMode,
