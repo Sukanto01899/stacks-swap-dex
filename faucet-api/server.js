@@ -19,9 +19,11 @@ const {
   STACKS_NODE = '',
   STACKS_NODE_MAINNET = '',
   STACKS_NODE_TESTNET = '',
+  STACKS_NODE_DEVNET = '',
   CONTRACT_ADDRESS = '',
   CONTRACT_ADDRESS_MAINNET = '',
   CONTRACT_ADDRESS_TESTNET = '',
+  CONTRACT_ADDRESS_DEVNET = '',
   FAUCET_PORT = 8787,
   FAUCET_AMOUNT = '5000',
   FAUCET_ALLOW_MAINNET = 'false',
@@ -32,7 +34,7 @@ if (!DEPLOYER_MNEMONIC) {
 }
 
 // Importing Stacks libraries and setting up constants for the faucet configuration, including network details, contract addresses, and minting parameters.
-const { createNetwork, STACKS_MAINNET, STACKS_TESTNET } = StacksNetworkPkg
+const { createNetwork, STACKS_DEVNET, STACKS_MAINNET, STACKS_TESTNET } = StacksNetworkPkg
 const {
   AnchorMode,
   PostConditionMode,
@@ -48,7 +50,7 @@ const TOKEN_CONTRACTS = {
   y: { contractName: 'dex-token-y' },
 }
 
-const NETWORK_NAMES = ['mainnet', 'testnet']
+const NETWORK_NAMES = ['mainnet', 'testnet', 'devnet']
 const ALLOWED_TOKENS = Object.keys(TOKEN_CONTRACTS)
 const ALLOW_MAINNET = String(FAUCET_ALLOW_MAINNET).toLowerCase() === 'true'
 
@@ -67,6 +69,7 @@ const DEFAULT_NETWORK = normalizeNetwork(STACKS_NETWORK) || 'testnet'
 const DEFAULT_NODES = {
   mainnet: 'https://api.hiro.so',
   testnet: 'https://api.testnet.hiro.so',
+  devnet: 'http://localhost:3999',
 }
 
 const runtimeByNetwork = {
@@ -82,6 +85,12 @@ const runtimeByNetwork = {
     senderAddress: '',
     network: null,
   },
+  devnet: {
+    nodeUrl: STACKS_NODE_DEVNET || STACKS_NODE || DEFAULT_NODES.devnet,
+    contractAddress: CONTRACT_ADDRESS_DEVNET || CONTRACT_ADDRESS || '',
+    senderAddress: '',
+    network: null,
+  },
 }
 
 const isValidAddressForNetwork = (address, networkName) => {
@@ -93,7 +102,11 @@ const isValidAddressForNetwork = (address, networkName) => {
 let senderKey
 
 const getBaseNetwork = (networkName) =>
-  networkName === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET
+  networkName === 'mainnet'
+    ? STACKS_MAINNET
+    : networkName === 'devnet'
+      ? STACKS_DEVNET
+      : STACKS_TESTNET
 
 const getRuntime = (networkName) => runtimeByNetwork[networkName]
 
@@ -223,6 +236,11 @@ app.get('/health', (_req, res) => {
         node: runtimeByNetwork.mainnet.nodeUrl,
         sender: runtimeByNetwork.mainnet.senderAddress || null,
         hasContractAddress: Boolean(runtimeByNetwork.mainnet.contractAddress),
+      },
+      devnet: {
+        node: runtimeByNetwork.devnet.nodeUrl,
+        sender: runtimeByNetwork.devnet.senderAddress || null,
+        hasContractAddress: Boolean(runtimeByNetwork.devnet.contractAddress),
       },
     },
   })
