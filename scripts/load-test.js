@@ -24,7 +24,7 @@ import {
 import { deriveStxPrivateKey } from '@stacks/wallet-sdk';
 
 const HELP_TEXT = `
-Stacks Exchange load-test runner
+Clardex load-test runner
 
 Required env:
   LOAD_TEST_FUNDER_MNEMONIC   Mnemonic for the wallet funding STX fees

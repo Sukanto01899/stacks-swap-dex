@@ -1,6 +1,6 @@
-# Stacks Exchange
+# Clardex
 
-Stacks Exchange is an AMM-based decentralized exchange built on Stacks. It combines Clarity smart contracts, a React trading interface, and a faucet-backed testing workflow to make it easier to experiment with swaps, liquidity provisioning, and on-chain trading UX in the Stacks ecosystem.
+Clardex is an AMM-based decentralized exchange built on Stacks. It combines Clarity smart contracts, a React trading interface, and a faucet-backed testing workflow to make it easier to experiment with swaps, liquidity provisioning, and on-chain trading UX in the Stacks ecosystem.
 
 This repository is positioned as an open builder-focused exchange prototype: useful today as a working demo and development environment, and designed to evolve into a more complete production-ready DEX.
 
@@ -34,7 +34,7 @@ Many projects can build one of these pieces, but not all of them together in a w
 
 ## Solution
 
-Stacks Exchange provides an end-to-end exchange prototype with:
+Clardex provides an end-to-end exchange prototype with:
 - Clarity AMM pool contracts
 - SIP-010 demo tokens
 - a wallet-connected frontend
@@ -224,4 +224,4 @@ Important variables include:
 
 If you are reviewing this project for a grant, the key takeaway is:
 
-Stacks Exchange already demonstrates a credible full-stack DeFi base on Stacks, and grant support would directly accelerate its transition from developer-grade AMM prototype to ecosystem-ready exchange infrastructure.
+Clardex already demonstrates a credible full-stack DeFi base on Stacks, and grant support would directly accelerate its transition from developer-grade AMM prototype to ecosystem-ready exchange infrastructure.
