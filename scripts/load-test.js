@@ -38,6 +38,7 @@ Recommended env:
   LOAD_TEST_TOKEN_X_CONTRACT  Token X contract name (default: dex-token-x)
   LOAD_TEST_TOKEN_Y_CONTRACT  Token Y contract name (default: dex-token-y)
   LOAD_TEST_CYCLES            Number of generated wallets/cycles (default: 3)
+  LOAD_TEST_CONCURRENCY       Number of wallet cycles to run in parallel (default: 1)
   LOAD_TEST_DELAY_MS          Delay between submitted txs (default: 4000)
   LOAD_TEST_STX_PER_WALLET    STX per generated wallet, in STX (default: 0.5)
   LOAD_TEST_SWAP_X_AMOUNT     Swap X amount, token units (default: 5)
@@ -80,6 +81,7 @@ const {
   LOAD_TEST_TOKEN_X_CONTRACT = 'dex-token-x',
   LOAD_TEST_TOKEN_Y_CONTRACT = 'dex-token-y',
   LOAD_TEST_CYCLES = '3',
+  LOAD_TEST_CONCURRENCY = '1',
   LOAD_TEST_DELAY_MS = '4000',
   LOAD_TEST_STX_PER_WALLET = '0.5',
   LOAD_TEST_SWAP_X_AMOUNT = '5',
@@ -111,6 +113,10 @@ const parseNumber = (value, fallback) => {
 };
 
 const cycles = Math.max(1, Math.floor(parseNumber(LOAD_TEST_CYCLES, 3)));
+const concurrency = Math.max(
+  1,
+  Math.min(cycles, Math.floor(parseNumber(LOAD_TEST_CONCURRENCY, 1))),
+);
 const delayMs = Math.max(0, Math.floor(parseNumber(LOAD_TEST_DELAY_MS, 4000)));
 const removeRatio = Math.min(1, Math.max(0, parseNumber(LOAD_TEST_REMOVE_RATIO, 0.4)));
 
@@ -135,6 +141,7 @@ const config = {
   tokenXContractName: LOAD_TEST_TOKEN_X_CONTRACT,
   tokenYContractName: LOAD_TEST_TOKEN_Y_CONTRACT,
   cycles,
+  concurrency,
   delayMs,
   stxPerWallet: toMicroStx(LOAD_TEST_STX_PER_WALLET),
   swapXAmount: toTokenUnits(LOAD_TEST_SWAP_X_AMOUNT),
@@ -160,8 +167,17 @@ const sleep = ms =>
     setTimeout(resolve, ms);
   });
 
+const waitForSettle = async () => {
+  if (config.delayMs > 0) {
+    await sleep(config.delayMs);
+  }
+};
+
 const explainBroadcastError = response =>
   response.reason || response.error || 'Broadcast failed';
+
+const nonceCache = new Map();
+const senderQueues = new Map();
 
 const fetchNextNonce = async address => {
   const url = `${config.nodeUrl}/extended/v1/address/${address}/nonces`;
@@ -187,31 +203,51 @@ const fetchNextNonce = async address => {
 
 const isRetryableError = message => /nonce|mempool|chaining/i.test(String(message || ''));
 
+const runForSender = (senderAddress, task) => {
+  const previous = senderQueues.get(senderAddress) || Promise.resolve();
+  const current = previous.catch(() => {}).then(task);
+  senderQueues.set(
+    senderAddress,
+    current.finally(() => {
+      if (senderQueues.get(senderAddress) === current) {
+        senderQueues.delete(senderAddress);
+      }
+    }),
+  );
+  return current;
+};
+
 const submitWithRetries = async ({ makeTx, senderAddress, label, maxAttempts = 3 }) => {
-  let lastMessage = 'Unknown broadcast error';
+  return runForSender(senderAddress, async () => {
+    let lastMessage = 'Unknown broadcast error';
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const nonce = await fetchNextNonce(senderAddress);
-    const transaction = await makeTx(nonce);
-    const response = await broadcastTransaction({
-      transaction,
-      network,
-    });
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const cachedNonce = nonceCache.get(senderAddress);
+      const nonce =
+        cachedNonce !== undefined ? cachedNonce : await fetchNextNonce(senderAddress);
+      const transaction = await makeTx(nonce);
+      const response = await broadcastTransaction({
+        transaction,
+        network,
+      });
 
-    if (!('error' in response)) {
-      return {
-        txid: transaction.txid(),
-        nonce: nonce.toString(),
-      };
+      if (!('error' in response)) {
+        nonceCache.set(senderAddress, nonce + 1n);
+        return {
+          txid: transaction.txid(),
+          nonce: nonce.toString(),
+        };
+      }
+
+      lastMessage = explainBroadcastError(response);
+      nonceCache.delete(senderAddress);
+      console.warn(`${label} failed on attempt ${attempt}: ${lastMessage}`);
+      if (!isRetryableError(lastMessage) || attempt === maxAttempts) break;
+      await sleep(500 * attempt);
     }
 
-    lastMessage = explainBroadcastError(response);
-    console.warn(`${label} failed on attempt ${attempt}: ${lastMessage}`);
-    if (!isRetryableError(lastMessage) || attempt === maxAttempts) break;
-    await sleep(500 * attempt);
-  }
-
-  throw new Error(`${label} failed: ${lastMessage}`);
+    throw new Error(`${label} failed: ${lastMessage}`);
+  });
 };
 
 const makeWalletFromMnemonic = async mnemonic => {
@@ -339,15 +375,15 @@ const runWalletCycle = async (wallet, index) => {
 
   const funded = await fundWallet(funderWallet, wallet.address);
   console.log(`[cycle ${index}] funded stx tx=${funded.txid}`);
-  await sleep(config.delayMs);
+  await waitForSettle();
 
-  const mintX = await requestFaucetToken(wallet.address, 'x');
+  const [mintX, mintY] = await Promise.all([
+    requestFaucetToken(wallet.address, 'x'),
+    requestFaucetToken(wallet.address, 'y'),
+  ]);
   console.log(`[cycle ${index}] faucet x tx=${mintX.txid}`);
-  await sleep(config.delayMs);
-
-  const mintY = await requestFaucetToken(wallet.address, 'y');
   console.log(`[cycle ${index}] faucet y tx=${mintY.txid}`);
-  await sleep(config.delayMs);
+  await waitForSettle();
 
   const swapX = await submitPoolCall({
     wallet,
@@ -362,7 +398,7 @@ const runWalletCycle = async (wallet, index) => {
     ],
   });
   console.log(`[cycle ${index}] swap x->y tx=${swapX.txid}`);
-  await sleep(config.delayMs);
+  await waitForSettle();
 
   const addLiquidity = await submitPoolCall({
     wallet,
@@ -376,7 +412,7 @@ const runWalletCycle = async (wallet, index) => {
     ],
   });
   console.log(`[cycle ${index}] add liquidity tx=${addLiquidity.txid}`);
-  await sleep(config.delayMs);
+  await waitForSettle();
 
   const lpBalance = await getLpBalance(wallet.address);
   if (lpBalance <= 0n) {
@@ -398,7 +434,7 @@ const runWalletCycle = async (wallet, index) => {
     ],
   });
   console.log(`[cycle ${index}] remove liquidity tx=${removeLiquidity.txid}`);
-  await sleep(config.delayMs);
+  await waitForSettle();
 
   const swapY = await submitPoolCall({
     wallet,
@@ -434,6 +470,7 @@ console.log(
       contractAddress: config.contractAddress,
       poolContract: config.poolContractName,
       cycles: config.cycles,
+      concurrency: config.concurrency,
     },
     null,
     2,
@@ -450,21 +487,35 @@ if (reserves.reserveX <= 0 || reserves.reserveY <= 0) {
 const funderWallet = await makeWalletFromMnemonic(LOAD_TEST_FUNDER_MNEMONIC);
 console.log(`Funder address: ${funderWallet.address}`);
 
-const results = [];
-for (let index = 1; index <= config.cycles; index += 1) {
-  const wallet = createEphemeralWallet();
-  try {
-    const result = await runWalletCycle(wallet, index);
-    results.push({ ok: true, ...result });
-  } catch (error) {
-    console.error(`[cycle ${index}] failed`, error);
-    results.push({
-      ok: false,
-      wallet: wallet.address,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-}
+const wallets = Array.from({ length: config.cycles }, () => createEphemeralWallet());
+const results = new Array(config.cycles);
+let nextCycle = 0;
+
+const workers = Array.from(
+  { length: Math.min(config.concurrency, config.cycles) },
+  async () => {
+    while (nextCycle < wallets.length) {
+      const currentIndex = nextCycle;
+      nextCycle += 1;
+      const cycleNumber = currentIndex + 1;
+      const wallet = wallets[currentIndex];
+
+      try {
+        const result = await runWalletCycle(wallet, cycleNumber);
+        results[currentIndex] = { ok: true, ...result };
+      } catch (error) {
+        console.error(`[cycle ${cycleNumber}] failed`, error);
+        results[currentIndex] = {
+          ok: false,
+          wallet: wallet.address,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    }
+  },
+);
+
+await Promise.all(workers);
 
 console.log('\nLoad test summary');
 console.log(JSON.stringify(results, null, 2));
