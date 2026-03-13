@@ -8,7 +8,7 @@
 (define-constant BPS_DENOM u10000)
 (define-constant MINIMUM_LIQUIDITY u1000)
 
-;; Error codes
+;; Error code here
 (define-constant ERR_ZERO_INPUT (err u100))
 (define-constant ERR_ZERO_RESERVES (err u101))
 (define-constant ERR_DEADLINE_EXPIRED (err u102))
@@ -494,4 +494,3 @@
     total-fees-y: (var-get total-fees-y),
   }
 )
-
