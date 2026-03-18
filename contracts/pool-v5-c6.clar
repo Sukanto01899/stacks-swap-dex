@@ -122,14 +122,8 @@
 
 (define-private (validate-init-token (token-opt (optional principal)) (is-stx bool))
   (if is-stx
-    (begin
-      (asserts! (is-eq token-opt none) ERR_INVALID_TOKEN)
-      true
-    )
-    (begin
-      (asserts! (is-some token-opt) ERR_INVALID_TOKEN)
-      true
-    )
+    (if (is-eq token-opt none) (ok true) ERR_INVALID_TOKEN)
+    (if (is-some token-opt) (ok true) ERR_INVALID_TOKEN)
   )
 )
 
@@ -142,14 +136,10 @@
   (begin
     (asserts! (is-eq is-stx stored-is-stx) ERR_TOKEN_MISMATCH)
     (if is-stx
-      (begin
-        (asserts! (is-eq token-opt none) ERR_TOKEN_MISMATCH)
-        true
-      )
+      (if (is-eq token-opt none) (ok true) ERR_TOKEN_MISMATCH)
       (begin
         (asserts! (is-some token-opt) ERR_TOKEN_MISMATCH)
-        (asserts! (is-eq token-opt stored-token) ERR_TOKEN_MISMATCH)
-        true
+        (if (is-eq token-opt stored-token) (ok true) ERR_TOKEN_MISMATCH)
       )
     )
   )
@@ -360,8 +350,8 @@
     (asserts! (<= stacks-block-height deadline) ERR_DEADLINE_EXPIRED)
     (asserts! (> dx u0) ERR_ZERO_INPUT)
     (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
-    (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx)
-    (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx)
+    (try! (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx))
+    (try! (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx))
     (let (
         (quote (quote-out dx rx ry))
         (fee (get fee quote))
@@ -409,8 +399,8 @@
     (asserts! (<= stacks-block-height deadline) ERR_DEADLINE_EXPIRED)
     (asserts! (> dy u0) ERR_ZERO_INPUT)
     (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
-    (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx)
-    (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx)
+    (try! (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx))
+    (try! (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx))
     (let (
         (quote (quote-out dy ry rx))
         (fee (get fee quote))
@@ -453,8 +443,8 @@
     )
     (asserts! (and (> amount-x u0) (> amount-y u0)) ERR_ZERO_INPUT)
     (asserts! (not (and token-x-stx token-y-stx)) ERR_INVALID_TOKEN)
-    (validate-init-token token-x token-x-stx)
-    (validate-init-token token-y token-y-stx)
+    (try! (validate-init-token token-x token-x-stx))
+    (try! (validate-init-token token-y token-y-stx))
     (let ((shares (int-sqrt (* amount-x amount-y))))
       (asserts! (> shares MINIMUM_LIQUIDITY) ERR_MIN_LIQUIDITY)
       (var-set fee-recipient (some sender))
@@ -495,8 +485,8 @@
     )
     (asserts! (> supply u0) ERR_NOT_INITIALIZED)
     (asserts! (and (> amount-x u0) (> amount-y u0)) ERR_ZERO_INPUT)
-    (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx)
-    (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx)
+    (try! (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx))
+    (try! (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx))
     ;; Calculate shares based on minimum contribution
     (let (
         (shares-from-x (/ (* amount-x supply) rx))
@@ -545,8 +535,8 @@
     (asserts! (> supply u0) ERR_NOT_INITIALIZED)
     (asserts! (> shares u0) ERR_ZERO_INPUT)
     (asserts! (>= user-balance shares) ERR_INSUFFICIENT_LP_BALANCE)
-    (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx)
-    (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx)
+    (try! (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx))
+    (try! (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx))
     ;; Calculate amounts to withdraw
     (let (
         (amount-x (/ (* shares rx) supply))
