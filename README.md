@@ -208,6 +208,7 @@ Important variables include:
 - `STACKS_NETWORK`
 - `CONTRACT_ADDRESS_TESTNET`
 - `VITE_POOL_CONTRACT`
+- `VITE_POOLS` (comma-separated pool contract IDs for multi-pool UI)
 - `VITE_TOKEN_X`
 - `VITE_TOKEN_Y`
 - `LOAD_TEST_NETWORK`

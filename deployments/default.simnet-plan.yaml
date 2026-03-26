@@ -66,51 +66,51 @@ plan:
         - emulated-contract-publish:
             contract-name: sip010-ft-trait
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\traits\\sip-010-trait-c6.clar"
+            path: contracts/traits/sip-010-trait-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-pool-basic
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\pool-c6.clar"
+            path: contracts/pool-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-pool-lp
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\pool-lp-c6.clar"
+            path: contracts/pool-lp-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-pool-v1
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\pool-v-c6.clar"
+            path: contracts/pool-v-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-pool-v2
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\pool-v2-c6.clar"
+            path: contracts/pool-v2-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-pool-v3
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\pool-v3-c6.clar"
+            path: contracts/pool-v3-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-pool-v4
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\pool-v4-c6.clar"
+            path: contracts/pool-v4-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-pool-v5
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\pool-v5-c6.clar"
+            path: contracts/pool-v5-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-token-x
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\test-tokens\\token-x-c6.clar"
+            path: contracts/test-tokens/token-x-c6.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: dex-token-y
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\test-tokens\\token-y-c6.clar"
+            path: contracts/test-tokens/token-y-c6.clar
             clarity-version: 3
       epoch: "3.2"
