@@ -198,21 +198,7 @@ npm run faucet
 ```bash
 npm run loadtest -- --help
 ```
-
-## Configuration
-
-Environment examples are documented in `.env.example`.
-
-Important variables include:
-- `DEPLOYER_MNEMONIC`
-- `STACKS_NETWORK`
-- `CONTRACT_ADDRESS_TESTNET`
-- `VITE_POOL_CONTRACT`
-- `VITE_POOLS` (comma-separated pool contract IDs for multi-pool UI)
-- `VITE_TOKEN_X`
-- `VITE_TOKEN_Y`
-- `LOAD_TEST_NETWORK`
-- `LOAD_TEST_FUNDER_MNEMONIC`
+.
 
 ## Notes
 
