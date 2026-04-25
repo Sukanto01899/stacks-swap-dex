@@ -5,6 +5,9 @@ const TOKEN_X = "dex-token-x";
 const TOKEN_Y = "dex-token-y";
 const POOL = "dex-pool-v5";
 
+const tokenXTrait = (deployer: string) => Cl.contractPrincipal(deployer, TOKEN_X);
+const tokenYTrait = (deployer: string) => Cl.contractPrincipal(deployer, TOKEN_Y);
+
 const normalizeCv = (value: unknown): unknown => {
   if (!value || typeof value !== "object") return value;
 
@@ -55,8 +58,10 @@ const initializePool = (deployer: string, owner: string, amountX: bigint, amount
     POOL,
     "initialize-pool",
     [
-      Cl.contractPrincipal(deployer, TOKEN_X),
-      Cl.contractPrincipal(deployer, TOKEN_Y),
+      tokenXTrait(deployer),
+      tokenYTrait(deployer),
+      Cl.bool(false),
+      Cl.bool(false),
       Cl.uint(amountX),
       Cl.uint(amountY),
     ],
@@ -137,8 +142,8 @@ describe("dex-pool-v5", () => {
       POOL,
       "swap-x-for-y",
       [
-        Cl.contractPrincipal(deployer, TOKEN_X),
-        Cl.contractPrincipal(deployer, TOKEN_Y),
+        tokenXTrait(deployer),
+        tokenYTrait(deployer),
         Cl.uint(1_000),
         Cl.uint(900),
         Cl.principal(wallet2),
@@ -194,8 +199,8 @@ describe("dex-pool-v5", () => {
       POOL,
       "add-liquidity",
       [
-        Cl.contractPrincipal(deployer, TOKEN_X),
-        Cl.contractPrincipal(deployer, TOKEN_Y),
+        tokenXTrait(deployer),
+        tokenYTrait(deployer),
         Cl.uint(5_000),
         Cl.uint(5_000),
         Cl.uint(5_000),
@@ -223,8 +228,8 @@ describe("dex-pool-v5", () => {
       POOL,
       "remove-liquidity",
       [
-        Cl.contractPrincipal(deployer, TOKEN_X),
-        Cl.contractPrincipal(deployer, TOKEN_Y),
+        tokenXTrait(deployer),
+        tokenYTrait(deployer),
         Cl.uint(97_677),
         Cl.uint(2_500),
         Cl.uint(2_500),
@@ -271,8 +276,8 @@ describe("dex-pool-v5", () => {
       POOL,
       "swap-y-for-x",
       [
-        Cl.contractPrincipal(deployer, TOKEN_X),
-        Cl.contractPrincipal(deployer, TOKEN_Y),
+        tokenXTrait(deployer),
+        tokenYTrait(deployer),
         Cl.uint(1_000),
         Cl.uint(1),
         Cl.principal(wallet2),
@@ -282,5 +287,40 @@ describe("dex-pool-v5", () => {
     );
 
     expect(swap.result).toBeErr(Cl.uint(102));
+  });
+
+  it("allows current fee recipient to update fee-recipient", () => {
+    const accounts = simnet.getAccounts();
+    const deployer = accounts.get("deployer");
+    const wallet1 = accounts.get("wallet_1");
+    const wallet2 = accounts.get("wallet_2");
+
+    if (!deployer || !wallet1 || !wallet2) throw new Error("Missing test accounts");
+
+    mintBothTokens(deployer, wallet1, 50_000n);
+    initializePool(deployer, wallet1, 10_000n, 10_000n);
+
+    expect(
+      simnet.callPublicFn(POOL, "set-fee-recipient", [Cl.principal(wallet2)], wallet2)
+        .result,
+    ).toBeErr(Cl.uint(207));
+
+    expect(
+      simnet.callPublicFn(POOL, "set-fee-recipient", [Cl.principal(wallet2)], wallet1)
+        .result,
+    ).toBeOk(
+      Cl.tuple({
+        previous: Cl.principal(wallet1),
+        recipient: Cl.principal(wallet2),
+      }),
+    );
+
+    const contractInfo = readOnlyValue(
+      simnet.callReadOnlyFn(POOL, "get-contract-info", [], deployer).result,
+    ) as {
+      "fee-recipient": string;
+    };
+
+    expect(contractInfo["fee-recipient"]).toBe(wallet2);
   });
 });

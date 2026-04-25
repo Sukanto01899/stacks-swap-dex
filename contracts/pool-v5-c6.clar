@@ -2,6 +2,8 @@
 ;; Features: Bidirectional swaps, LP shares, add/remove liquidity
 ;; Updated: native STX support + dynamic SIP-010 token principals
 
+(use-trait ft-trait .sip010-ft-trait.sip-010-trait)
+
 ;; Fee configuration: 30 basis points = 0.30%
 (define-constant FEE_BPS u30)
 (define-constant BPS_DENOM u10000)
@@ -23,6 +25,7 @@
 (define-constant ERR_MIN_LIQUIDITY (err u204))
 (define-constant ERR_TOKEN_MISMATCH (err u205))
 (define-constant ERR_INVALID_TOKEN (err u206))
+(define-constant ERR_NOT_AUTHORIZED (err u207))
 
 ;; State variables
 (define-data-var fee-recipient (optional principal) none)
@@ -120,15 +123,8 @@
   (if (< a b) a b)
 )
 
-(define-private (validate-init-token (token-opt (optional principal)) (is-stx bool))
-  (if is-stx
-    (if (is-eq token-opt none) (ok true) ERR_INVALID_TOKEN)
-    (if (is-some token-opt) (ok true) ERR_INVALID_TOKEN)
-  )
-)
-
 (define-private (assert-token-match
-    (token-opt (optional principal))
+    (token <ft-trait>)
     (is-stx bool)
     (stored-token (optional principal))
     (stored-is-stx bool)
@@ -136,64 +132,51 @@
   (begin
     (asserts! (is-eq is-stx stored-is-stx) ERR_TOKEN_MISMATCH)
     (if is-stx
-      (if (is-eq token-opt none) (ok true) ERR_TOKEN_MISMATCH)
+      (ok true)
       (begin
-        (asserts! (is-some token-opt) ERR_TOKEN_MISMATCH)
-        (if (is-eq token-opt stored-token) (ok true) ERR_TOKEN_MISMATCH)
+        (if (is-eq (some (contract-of token)) stored-token)
+          (ok true)
+          ERR_TOKEN_MISMATCH
+        )
       )
     )
   )
 )
 
 (define-private (transfer-in
-    (token-opt (optional principal))
+    (token <ft-trait>)
     (is-stx bool)
     (amount uint)
     (sender principal)
-    (err-code (response bool uint))
   )
   (if is-stx
-    (unwrap! (stx-transfer? amount sender (as-contract tx-sender)) err-code)
-    (let ((token (unwrap! token-opt err-code)))
-      (unwrap!
-        (contract-call? token transfer amount sender (as-contract tx-sender) none)
-        err-code
-      )
-    )
+    (stx-transfer? amount sender (as-contract tx-sender))
+    (contract-call? token transfer amount sender (as-contract tx-sender) none)
   )
 )
 
 (define-private (transfer-out
-    (token-opt (optional principal))
+    (token <ft-trait>)
     (is-stx bool)
     (amount uint)
     (recipient principal)
-    (err-code (response bool uint))
   )
   (if is-stx
-    (unwrap! (stx-transfer? amount (as-contract tx-sender) recipient) err-code)
-    (let ((token (unwrap! token-opt err-code)))
-      (unwrap!
-        (as-contract (contract-call? token transfer amount tx-sender recipient none))
-        err-code
-      )
-    )
+    (stx-transfer? amount (as-contract tx-sender) recipient)
+    (as-contract (contract-call? token transfer amount tx-sender recipient none))
   )
 )
 
 (define-private (transfer-fee
-    (token-opt (optional principal))
+    (token <ft-trait>)
     (is-stx bool)
     (amount uint)
     (sender principal)
     (recipient principal)
-    (err-code (response bool uint))
   )
   (if is-stx
-    (unwrap! (stx-transfer? amount sender recipient) err-code)
-    (let ((token (unwrap! token-opt err-code)))
-      (unwrap! (contract-call? token transfer amount sender recipient none) err-code)
-    )
+    (stx-transfer? amount sender recipient)
+    (contract-call? token transfer amount sender recipient none)
   )
 )
 
@@ -332,8 +315,8 @@
 
 ;; Swap X for Y (token X -> token Y)
 (define-public (swap-x-for-y
-    (token-x (optional principal))
-    (token-y (optional principal))
+    (token-x-ref <ft-trait>)
+    (token-y-ref <ft-trait>)
     (dx uint)
     (min-dy uint)
     (recipient principal)
@@ -350,8 +333,8 @@
     (asserts! (<= stacks-block-height deadline) ERR_DEADLINE_EXPIRED)
     (asserts! (> dx u0) ERR_ZERO_INPUT)
     (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
-    (try! (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx))
-    (try! (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx))
+    (try! (assert-token-match token-x-ref x-is-stx (var-get token-x) x-is-stx))
+    (try! (assert-token-match token-y-ref y-is-stx (var-get token-y) y-is-stx))
     (let (
         (quote (quote-out dx rx ry))
         (fee (get fee quote))
@@ -361,11 +344,11 @@
       (asserts! (>= dy min-dy) ERR_SLIPPAGE_EXCEEDED)
       (asserts! (< dy ry) ERR_INSUFFICIENT_LIQUIDITY)
       (if (and (> fee u0) (not (is-eq sender fee-addr)))
-        (transfer-fee token-x x-is-stx fee sender fee-addr ERR_FEE_TRANSFER_FAILED)
+        (unwrap! (transfer-fee token-x-ref x-is-stx fee sender fee-addr) ERR_FEE_TRANSFER_FAILED)
         true
       )
-      (transfer-in token-x x-is-stx dx-to-pool sender ERR_TRANSFER_X_FAILED)
-      (transfer-out token-y y-is-stx dy recipient ERR_TRANSFER_Y_FAILED)
+      (unwrap! (transfer-in token-x-ref x-is-stx dx-to-pool sender) ERR_TRANSFER_X_FAILED)
+      (unwrap! (transfer-out token-y-ref y-is-stx dy recipient) ERR_TRANSFER_Y_FAILED)
       (var-set reserve-x (+ rx dx-to-pool))
       (var-set reserve-y (- ry dy))
       (var-set total-fees-x (+ (var-get total-fees-x) fee))
@@ -381,8 +364,8 @@
 
 ;; Swap Y for X (token Y -> token X)
 (define-public (swap-y-for-x
-    (token-x (optional principal))
-    (token-y (optional principal))
+    (token-x-ref <ft-trait>)
+    (token-y-ref <ft-trait>)
     (dy uint)
     (min-dx uint)
     (recipient principal)
@@ -399,8 +382,8 @@
     (asserts! (<= stacks-block-height deadline) ERR_DEADLINE_EXPIRED)
     (asserts! (> dy u0) ERR_ZERO_INPUT)
     (asserts! (and (> rx u0) (> ry u0)) ERR_ZERO_RESERVES)
-    (try! (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx))
-    (try! (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx))
+    (try! (assert-token-match token-x-ref x-is-stx (var-get token-x) x-is-stx))
+    (try! (assert-token-match token-y-ref y-is-stx (var-get token-y) y-is-stx))
     (let (
         (quote (quote-out dy ry rx))
         (fee (get fee quote))
@@ -410,11 +393,11 @@
       (asserts! (>= dx min-dx) ERR_SLIPPAGE_EXCEEDED)
       (asserts! (< dx rx) ERR_INSUFFICIENT_LIQUIDITY)
       (if (and (> fee u0) (not (is-eq sender fee-addr)))
-        (transfer-fee token-y y-is-stx fee sender fee-addr ERR_FEE_TRANSFER_FAILED)
+        (unwrap! (transfer-fee token-y-ref y-is-stx fee sender fee-addr) ERR_FEE_TRANSFER_FAILED)
         true
       )
-      (transfer-in token-y y-is-stx dy-to-pool sender ERR_TRANSFER_Y_FAILED)
-      (transfer-out token-x x-is-stx dx recipient ERR_TRANSFER_X_FAILED)
+      (unwrap! (transfer-in token-y-ref y-is-stx dy-to-pool sender) ERR_TRANSFER_Y_FAILED)
+      (unwrap! (transfer-out token-x-ref x-is-stx dx recipient) ERR_TRANSFER_X_FAILED)
       (var-set reserve-x (- rx dx))
       (var-set reserve-y (+ ry dy-to-pool))
       (var-set total-fees-y (+ (var-get total-fees-y) fee))
@@ -430,8 +413,8 @@
 
 ;; Initialize pool with initial liquidity (first LP)
 (define-public (initialize-pool
-    (token-x (optional principal))
-    (token-y (optional principal))
+    (token-x-ref <ft-trait>)
+    (token-y-ref <ft-trait>)
     (token-x-stx bool)
     (token-y-stx bool)
     (amount-x uint)
@@ -443,15 +426,19 @@
     )
     (asserts! (and (> amount-x u0) (> amount-y u0)) ERR_ZERO_INPUT)
     (asserts! (not (and token-x-stx token-y-stx)) ERR_INVALID_TOKEN)
-    (try! (validate-init-token token-x token-x-stx))
-    (try! (validate-init-token token-y token-y-stx))
     (let ((shares (int-sqrt (* amount-x amount-y))))
       (asserts! (> shares MINIMUM_LIQUIDITY) ERR_MIN_LIQUIDITY)
       (var-set fee-recipient (some sender))
-      (transfer-in token-x token-x-stx amount-x sender ERR_TRANSFER_X_FAILED)
-      (transfer-in token-y token-y-stx amount-y sender ERR_TRANSFER_Y_FAILED)
-      (var-set token-x token-x)
-      (var-set token-y token-y)
+      (unwrap! (transfer-in token-x-ref token-x-stx amount-x sender) ERR_TRANSFER_X_FAILED)
+      (unwrap! (transfer-in token-y-ref token-y-stx amount-y sender) ERR_TRANSFER_Y_FAILED)
+      (var-set token-x (if token-x-stx
+        none
+        (some (contract-of token-x-ref))
+      ))
+      (var-set token-y (if token-y-stx
+        none
+        (some (contract-of token-y-ref))
+      ))
       (var-set token-x-is-stx token-x-stx)
       (var-set token-y-is-stx token-y-stx)
       (var-set reserve-x amount-x)
@@ -467,10 +454,19 @@
   )
 )
 
+;; Update fee recipient (only current recipient)
+(define-public (set-fee-recipient (new-recipient principal))
+  (let ((current (unwrap! (var-get fee-recipient) ERR_NOT_INITIALIZED)))
+    (asserts! (is-eq tx-sender current) ERR_NOT_AUTHORIZED)
+    (var-set fee-recipient (some new-recipient))
+    (ok { previous: current, recipient: new-recipient })
+  )
+)
+
 ;; Add liquidity (subsequent LPs)
 (define-public (add-liquidity
-    (token-x (optional principal))
-    (token-y (optional principal))
+    (token-x-ref <ft-trait>)
+    (token-y-ref <ft-trait>)
     (amount-x uint)
     (amount-y uint)
     (min-shares uint)
@@ -485,8 +481,8 @@
     )
     (asserts! (> supply u0) ERR_NOT_INITIALIZED)
     (asserts! (and (> amount-x u0) (> amount-y u0)) ERR_ZERO_INPUT)
-    (try! (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx))
-    (try! (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx))
+    (try! (assert-token-match token-x-ref x-is-stx (var-get token-x) x-is-stx))
+    (try! (assert-token-match token-y-ref y-is-stx (var-get token-y) y-is-stx))
     ;; Calculate shares based on minimum contribution
     (let (
         (shares-from-x (/ (* amount-x supply) rx))
@@ -499,8 +495,8 @@
       (asserts! (>= shares min-shares) ERR_SLIPPAGE_EXCEEDED)
       (asserts! (> shares u0) ERR_ZERO_SHARES)
       ;; Transfer tokens
-      (transfer-in token-x x-is-stx actual-x sender ERR_TRANSFER_X_FAILED)
-      (transfer-in token-y y-is-stx actual-y sender ERR_TRANSFER_Y_FAILED)
+      (unwrap! (transfer-in token-x-ref x-is-stx actual-x sender) ERR_TRANSFER_X_FAILED)
+      (unwrap! (transfer-in token-y-ref y-is-stx actual-y sender) ERR_TRANSFER_Y_FAILED)
       ;; Update state
       (var-set reserve-x (+ rx actual-x))
       (var-set reserve-y (+ ry actual-y))
@@ -517,8 +513,8 @@
 
 ;; Remove liquidity
 (define-public (remove-liquidity
-    (token-x (optional principal))
-    (token-y (optional principal))
+    (token-x-ref <ft-trait>)
+    (token-y-ref <ft-trait>)
     (shares uint)
     (min-x uint)
     (min-y uint)
@@ -535,8 +531,8 @@
     (asserts! (> supply u0) ERR_NOT_INITIALIZED)
     (asserts! (> shares u0) ERR_ZERO_INPUT)
     (asserts! (>= user-balance shares) ERR_INSUFFICIENT_LP_BALANCE)
-    (try! (assert-token-match token-x x-is-stx (var-get token-x) x-is-stx))
-    (try! (assert-token-match token-y y-is-stx (var-get token-y) y-is-stx))
+    (try! (assert-token-match token-x-ref x-is-stx (var-get token-x) x-is-stx))
+    (try! (assert-token-match token-y-ref y-is-stx (var-get token-y) y-is-stx))
     ;; Calculate amounts to withdraw
     (let (
         (amount-x (/ (* shares rx) supply))
@@ -545,8 +541,8 @@
       (asserts! (>= amount-x min-x) ERR_SLIPPAGE_EXCEEDED)
       (asserts! (>= amount-y min-y) ERR_SLIPPAGE_EXCEEDED)
       ;; Transfer tokens back
-      (transfer-out token-x x-is-stx amount-x sender ERR_TRANSFER_X_FAILED)
-      (transfer-out token-y y-is-stx amount-y sender ERR_TRANSFER_Y_FAILED)
+      (unwrap! (transfer-out token-x-ref x-is-stx amount-x sender) ERR_TRANSFER_X_FAILED)
+      (unwrap! (transfer-out token-y-ref y-is-stx amount-y sender) ERR_TRANSFER_Y_FAILED)
       ;; Update state
       (var-set reserve-x (- rx amount-x))
       (var-set reserve-y (- ry amount-y))
@@ -565,7 +561,7 @@
 (define-read-only (get-contract-info)
   {
     name: "dex-pool-v5",
-    version: "5.1.0",
+    version: "5.1.1",
     fee-bps: FEE_BPS,
     fee-recipient: (var-get fee-recipient),
     reserve-x: (var-get reserve-x),
@@ -580,154 +576,4 @@
   }
 )
 
-;; Bulk Operations
-
-;; Bulk swap X for Y (up to 10 swaps in one transaction)
-(define-private (bulk-swap-x-for-y-internal (swap-data {
-  token-x: (optional principal),
-  token-y: (optional principal),
-  dx: uint,
-  min-dy: uint,
-  recipient: principal,
-  deadline: uint,
-}))
-  (let (
-      (token-x (get token-x swap-data))
-      (token-y (get token-y swap-data))
-      (dx (get dx swap-data))
-      (min-dy (get min-dy swap-data))
-      (recipient (get recipient swap-data))
-      (deadline (get deadline swap-data))
-    )
-    ;; Call the main swap function
-    (swap-x-for-y token-x token-y dx min-dy recipient deadline)
-  )
-)
-
-(define-public (bulk-swap-x-for-y (swaps (list 10
-  {
-    token-x: (optional principal),
-    token-y: (optional principal),
-    dx: uint,
-    min-dy: uint,
-    recipient: principal,
-    deadline: uint,
-  }
-)))
-  (begin
-    (asserts! (> (len swaps) u0) ERR_ZERO_INPUT)
-    ;; Process all swaps - each will validate individually
-    (ok (map bulk-swap-x-for-y-internal swaps))
-  )
-)
-
-;; Bulk swap Y for X (up to 10 swaps in one transaction)
-(define-private (bulk-swap-y-for-x-internal (swap-data {
-  token-x: (optional principal),
-  token-y: (optional principal),
-  dy: uint,
-  min-dx: uint,
-  recipient: principal,
-  deadline: uint,
-}))
-  (let (
-      (token-x (get token-x swap-data))
-      (token-y (get token-y swap-data))
-      (dy (get dy swap-data))
-      (min-dx (get min-dx swap-data))
-      (recipient (get recipient swap-data))
-      (deadline (get deadline swap-data))
-    )
-    ;; Call the main swap function
-    (swap-y-for-x token-x token-y dy min-dx recipient deadline)
-  )
-)
-
-(define-public (bulk-swap-y-for-x (swaps (list 10
-  {
-    token-x: (optional principal),
-    token-y: (optional principal),
-    dy: uint,
-    min-dx: uint,
-    recipient: principal,
-    deadline: uint,
-  }
-)))
-  (begin
-    (asserts! (> (len swaps) u0) ERR_ZERO_INPUT)
-    ;; Process all swaps - each will validate individually
-    (ok (map bulk-swap-y-for-x-internal swaps))
-  )
-)
-
-;; Bulk add liquidity (up to 5 liquidity additions in one transaction)
-(define-private (bulk-add-liquidity-internal (liquidity-data {
-  token-x: (optional principal),
-  token-y: (optional principal),
-  amount-x: uint,
-  amount-y: uint,
-  min-shares: uint,
-}))
-  (let (
-      (token-x (get token-x liquidity-data))
-      (token-y (get token-y liquidity-data))
-      (amount-x (get amount-x liquidity-data))
-      (amount-y (get amount-y liquidity-data))
-      (min-shares (get min-shares liquidity-data))
-    )
-    ;; Call the main add-liquidity function
-    (add-liquidity token-x token-y amount-x amount-y min-shares)
-  )
-)
-
-(define-public (bulk-add-liquidity (liquidity-additions (list 5
-  {
-    token-x: (optional principal),
-    token-y: (optional principal),
-    amount-x: uint,
-    amount-y: uint,
-    min-shares: uint,
-  }
-)))
-  (begin
-    (asserts! (> (len liquidity-additions) u0) ERR_ZERO_INPUT)
-    ;; Process all liquidity additions - each will validate individually
-    (ok (map bulk-add-liquidity-internal liquidity-additions))
-  )
-)
-
-;; Bulk remove liquidity (up to 5 liquidity removals in one transaction)
-(define-private (bulk-remove-liquidity-internal (removal-data {
-  token-x: (optional principal),
-  token-y: (optional principal),
-  shares: uint,
-  min-x: uint,
-  min-y: uint,
-}))
-  (let (
-      (token-x (get token-x removal-data))
-      (token-y (get token-y removal-data))
-      (shares (get shares removal-data))
-      (min-x (get min-x removal-data))
-      (min-y (get min-y removal-data))
-    )
-    ;; Call the main remove-liquidity function
-    (remove-liquidity token-x token-y shares min-x min-y)
-  )
-)
-
-(define-public (bulk-remove-liquidity (liquidity-removals (list 5
-  {
-    token-x: (optional principal),
-    token-y: (optional principal),
-    shares: uint,
-    min-x: uint,
-    min-y: uint,
-  }
-)))
-  (begin
-    (asserts! (> (len liquidity-removals) u0) ERR_ZERO_INPUT)
-    ;; Process all liquidity removals - each will validate individually
-    (ok (map bulk-remove-liquidity-internal liquidity-removals))
-  )
-)
+;; Bulk operations removed in v5.1.1 (trait references cannot be nested in lists/tuples safely).
