@@ -14,7 +14,7 @@ app.use(cors())
 app.use(express.json())
 
 const {
-  DEPLOYER_MNEMONIC,
+  DEPLOYER_MNEMONIC = '',
   STACKS_NETWORK = 'testnet',
   STACKS_NODE = '',
   STACKS_NODE_MAINNET = '',
@@ -26,7 +26,7 @@ const {
   CONTRACT_ADDRESS_DEVNET = '',
   FAUCET_PORT = 8787,
   FAUCET_AMOUNT = '5000',
-  FAUCET_ALLOW_MAINNET = 'false',
+  FAUCET_ALLOW_MAINNET = true,
 } = process.env
 
 if (!DEPLOYER_MNEMONIC) {
